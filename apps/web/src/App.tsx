@@ -55,6 +55,8 @@ type ActiveTab =
 export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('foundation');
+  const [selectedModuleCode, setSelectedModuleCode] = useState<string>('01');
+  const [selectedSubmenu, setSelectedSubmenu] = useState<string>('Painéis executivos');
   const [selectedCompanyCode, setSelectedCompanyCode] = useState<string>('EMP-01');
   const [selectedRoleCode, setSelectedRoleCode] = useState<string>('FINANCIAL_MANAGER');
   const [moduleSearch, setModuleSearch] = useState<string>('');
@@ -1210,157 +1212,235 @@ export function App() {
 
   const completedChecks = checklistItems.filter((i) => i.ok).length;
 
-  const navGroups: Array<{
-    groupTitle: string;
-    items: Array<{
-      id: ActiveTab;
-      code: string;
-      label: string;
-      badge: string;
-      icon: string;
-      onSelect?: () => void;
-    }>;
+  const erpModulesMenu: Array<{
+    code: string;
+    label: string;
+    subtitle: string;
+    submenus: string[];
+    id: ActiveTab;
+    badge: string;
+    icon: string;
+    onSelect?: (submenu?: string) => void;
   }> = [
     {
-      groupTitle: 'GOVERNANÇA & CORE',
-      items: [
-        {
-          id: 'foundation',
-          code: '01',
-          label: 'Command Center & Status',
-          badge: `${completedChecks}/8`,
-          icon: '⚡',
-        },
-        {
-          id: 'identity',
-          code: '02',
-          label: 'Identity, SSO & MFA',
-          badge: 'JWT+TOTP',
-          icon: '🛡️',
-        },
-        {
-          id: 'multicompany',
-          code: '03',
-          label: 'Holding & Multiempresa',
-          badge: `${overview?.branches?.length ?? 0} Filiais`,
-          icon: '🏢',
-        },
-        {
-          id: 'rbac',
-          code: '04',
-          label: 'Governança RBAC & ABAC',
-          badge: `${overview?.roles?.length ?? 0} Perfis`,
-          icon: '🔐',
-        },
-      ],
+      code: '01',
+      label: 'Dashboard',
+      subtitle: 'Painéis executivos, operacionais e financeiros',
+      submenus: ['Painéis executivos', 'Operacionais', 'Financeiros'],
+      id: 'foundation',
+      badge: `${completedChecks}/8`,
+      icon: '📊',
     },
     {
-      groupTitle: 'FINANÇAS, CONTÁBIL & FISCAL',
-      items: [
-        {
-          id: 'financial',
-          code: '05',
-          label: 'Tesouraria & Financeiro',
-          badge: `${overview?.payables?.length ?? 0} Títulos`,
-          icon: '💎',
-        },
-        {
-          id: 'accounting',
-          code: '06',
-          label: 'Contabilidade, Diário & DRE',
-          badge: `${overview?.journalEntries?.length ?? 0} Diário`,
-          icon: '📊',
-        },
-        {
-          id: 'fiscal',
-          code: '07',
-          label: 'Fiscal, NF-e & Retenções',
-          badge: `${overview?.fiscalSummary?.documents?.length ?? 0} NF-e`,
-          icon: '🧾',
-        },
-      ],
+      code: '02',
+      label: 'Financeiro',
+      subtitle: 'Contas a pagar e receber, bancos, caixa e tesouraria',
+      submenus: ['Contas a pagar e receber', 'Bancos', 'Caixa', 'Tesouraria'],
+      id: 'financial',
+      badge: `${overview?.payables?.length ?? 0} Títulos`,
+      icon: '💎',
     },
     {
-      groupTitle: 'OPERAÇÕES & SUPPLY CHAIN',
-      items: [
-        {
-          id: 'hr',
-          code: '08',
-          label: 'Capital Humano & eSocial',
-          badge: `${overview?.hrSummary?.headcount?.active ?? 0} Colab.`,
-          icon: '👥',
-        },
-        {
-          id: 'crm',
-          code: '09',
-          label: 'Comercial & Pipeline CRM',
-          badge: `${overview?.crmSummary?.opportunities?.length ?? 0} Deals`,
-          icon: '🚀',
-        },
-        {
-          id: 'purchasing',
-          code: '10',
-          label: 'Compras & Suprimentos',
-          badge: `${overview?.purchasingSummary?.orders?.length ?? 0} POs`,
-          icon: '🛒',
-        },
-        {
-          id: 'inventory',
-          code: '11',
-          label: 'Estoque & Kardex CMPM',
-          badge: `${overview?.inventorySummary?.items?.length ?? 0} SKUs`,
-          icon: '📦',
-        },
-        {
-          id: 'assets',
-          code: '12',
-          label: 'Patrimônio & CPC 27',
-          badge: `${overview?.assetsSummary?.assets?.length ?? 0} Bens`,
-          icon: '🏛️',
-        },
-      ],
+      code: '03',
+      label: 'Contabilidade',
+      subtitle: 'Plano de contas, lançamentos, razão, balancete e DRE',
+      submenus: ['Plano de contas', 'Lançamentos', 'Razão', 'Balancete', 'DRE'],
+      id: 'accounting',
+      badge: `${overview?.journalEntries?.length ?? 0} Diário`,
+      icon: '📘',
     },
     {
-      groupTitle: 'RECEITA, CANAIS & AUDITORIA',
-      items: [
-        {
-          id: 'sales_payments',
-          code: '13',
-          label: 'Vendas & Gateways PIX',
-          badge: `${overview?.salesPaymentsSummary?.orders?.length ?? 0} PV/PIX`,
-          icon: '💳',
-        },
-        {
-          id: 'enterprise_ops',
-          code: '14',
-          label: 'Contratos, SAC, Mkt, BI & ICP',
-          badge: '20/20 Mod.',
-          icon: '🌐',
-        },
-        {
-          id: 'events',
-          code: '15',
-          label: 'Bilheteria & Borderô Eventos',
-          badge: 'Custódia',
-          icon: '🎟️',
-          onSelect: () => {
-            setSelectedCompanyCode('EMP-02');
-            setActiveTab('events');
-          },
-        },
-        {
-          id: 'audit',
-          code: '16',
-          label: 'Trilha ACID & Outbox',
-          badge: `${overview?.auditLogs?.length ?? 0} Logs`,
-          icon: '🔍',
-        },
-      ],
+      code: '04',
+      label: 'Fiscal',
+      subtitle: 'Documentos fiscais, impostos, apuração e SPED',
+      submenus: ['Documentos fiscais', 'Impostos', 'Apuração', 'SPED'],
+      id: 'fiscal',
+      badge: `${overview?.fiscalSummary?.documents?.length ?? 0} NF-e`,
+      icon: '🧾',
+    },
+    {
+      code: '05',
+      label: 'RH',
+      subtitle: 'Colaboradores, folha de pagamento, ponto e benefícios',
+      submenus: ['Colaboradores', 'Folha de pagamento', 'Ponto', 'Benefícios'],
+      id: 'hr',
+      badge: `${overview?.hrSummary?.headcount?.active ?? 0} Colab.`,
+      icon: '👥',
+    },
+    {
+      code: '06',
+      label: 'Comercial / CRM',
+      subtitle: 'Clientes, oportunidades e propostas comerciais',
+      submenus: ['Clientes', 'Oportunidades', 'Propostas comerciais'],
+      id: 'crm',
+      badge: `${overview?.crmSummary?.opportunities?.length ?? 0} Deals`,
+      icon: '🚀',
+    },
+    {
+      code: '07',
+      label: 'Compras',
+      subtitle: 'Fornecedores, cotações, aprovações e pedidos de compra',
+      submenus: ['Fornecedores', 'Cotações', 'Aprovações', 'Pedidos de compra'],
+      id: 'purchasing',
+      badge: `${overview?.purchasingSummary?.orders?.length ?? 0} POs`,
+      icon: '🛒',
+    },
+    {
+      code: '08',
+      label: 'Estoque',
+      subtitle: 'Materiais, movimentações, transferências e inventário',
+      submenus: ['Materiais', 'Movimentações', 'Transferências', 'Inventário'],
+      id: 'inventory',
+      badge: `${overview?.inventorySummary?.items?.length ?? 0} SKUs`,
+      icon: '📦',
+    },
+    {
+      code: '09',
+      label: 'Patrimônio',
+      subtitle: 'Bens, depreciação e manutenção',
+      submenus: ['Bens', 'Depreciação', 'Manutenção'],
+      id: 'assets',
+      badge: `${overview?.assetsSummary?.assets?.length ?? 0} Bens`,
+      icon: '🏛️',
+    },
+    {
+      code: '10',
+      label: 'Vendas',
+      subtitle: 'Pedidos, faturamento e comissões',
+      submenus: ['Pedidos', 'Faturamento', 'Comissões'],
+      id: 'sales_payments',
+      badge: `${overview?.salesPaymentsSummary?.orders?.length ?? 0} Pedidos`,
+      icon: '🛍️',
+    },
+    {
+      code: '11',
+      label: 'Pagamentos',
+      subtitle: 'Pix, cartões, gateways, recebíveis e chargebacks',
+      submenus: ['Pix', 'Cartões', 'Gateways', 'Recebíveis', 'Chargebacks'],
+      id: 'sales_payments',
+      badge: 'PIX/MDR',
+      icon: '💳',
+    },
+    {
+      code: '12',
+      label: 'Contratos',
+      subtitle: 'Gestão contratual, vigências e reajustes',
+      submenus: ['Gestão contratual', 'Vigências', 'Reajustes'],
+      id: 'enterprise_ops',
+      badge: `${overview?.enterpriseOpsSummary?.contracts?.length ?? 1} Ativos`,
+      icon: '📜',
+    },
+    {
+      code: '13',
+      label: 'SAC',
+      subtitle: 'Chamados, atendimento, prazos, estornos e reembolsos',
+      submenus: ['Chamados', 'Atendimento', 'Prazos', 'Estornos e reembolsos'],
+      id: 'enterprise_ops',
+      badge: 'SLA 99%',
+      icon: '🎧',
+    },
+    {
+      code: '14',
+      label: 'Marketing',
+      subtitle: 'Campanhas, cupons, conversões e integrações de mídia',
+      submenus: ['Campanhas', 'Cupons', 'Conversões', 'Integrações de mídia'],
+      id: 'enterprise_ops',
+      badge: 'ROAS',
+      icon: '📣',
+    },
+    {
+      code: '15',
+      label: 'BI e Analytics',
+      subtitle: 'Indicadores, análises gerenciais e previsões',
+      submenus: ['Indicadores', 'Análises gerenciais', 'Previsões'],
+      id: 'enterprise_ops',
+      badge: 'Forecast',
+      icon: '📈',
+    },
+    {
+      code: '16',
+      label: 'Documentos',
+      subtitle: 'Arquivos, assinaturas e certificados',
+      submenus: ['Arquivos', 'Assinaturas', 'Certificados'],
+      id: 'enterprise_ops',
+      badge: 'ICP-Brasil',
+      icon: '🔏',
+    },
+    {
+      code: '17',
+      label: 'Workflow',
+      subtitle: 'Aprovações, tarefas e alçadas',
+      submenus: ['Aprovações', 'Tarefas', 'Alçadas'],
+      id: 'rbac',
+      badge: `${overview?.workflows?.length ?? 0} Alçadas`,
+      icon: '✅',
+    },
+    {
+      code: '18',
+      label: 'Portal Externo',
+      subtitle: 'Áreas de clientes, fornecedores e parceiros',
+      submenus: ['Áreas de clientes', 'Fornecedores', 'Parceiros'],
+      id: 'events',
+      badge: 'Borderô',
+      icon: '🌐',
+      onSelect: (sub) => {
+        setSelectedCompanyCode('EMP-02');
+        setSelectedModuleCode('18');
+        setSelectedSubmenu(sub || 'Áreas de clientes');
+        setActiveTab('events');
+      },
+    },
+    {
+      code: '19',
+      label: 'Administração',
+      subtitle: 'Usuários, organizações, empresas e permissões',
+      submenus: ['Usuários', 'Organizações', 'Empresas', 'Permissões'],
+      id: 'identity',
+      badge: `${overview?.users?.length ?? 2} Admins`,
+      icon: '⚙️',
+      onSelect: (sub) => {
+        const chosen = sub || 'Usuários';
+        setSelectedModuleCode('19');
+        setSelectedSubmenu(chosen);
+        if (chosen === 'Organizações' || chosen === 'Empresas') {
+          setActiveTab('multicompany');
+        } else if (chosen === 'Permissões') {
+          setActiveTab('rbac');
+        } else {
+          setActiveTab('identity');
+        }
+      },
+    },
+    {
+      code: '20',
+      label: 'Integrações',
+      subtitle: 'APIs, webhooks e conectores',
+      submenus: ['APIs', 'Webhooks', 'Conectores'],
+      id: 'audit',
+      badge: `${overview?.outboxEvents?.length ?? 2} Eventos`,
+      icon: '🔌',
     },
   ];
 
-  const allNavItems = navGroups.flatMap((g) => g.items);
-  const currentNavItem = allNavItems.find((item) => item.id === activeTab) || allNavItems[0];
+  const handleSelectMenuModule = (
+    item: (typeof erpModulesMenu)[number],
+    submenu?: string
+  ) => {
+    const targetSub = submenu || item.submenus[0];
+    if (item.onSelect) {
+      item.onSelect(targetSub);
+      return;
+    }
+    setSelectedModuleCode(item.code);
+    setSelectedSubmenu(targetSub);
+    setActiveTab(item.id);
+  };
+
+  const allNavItems = erpModulesMenu;
+  const currentNavItem =
+    erpModulesMenu.find((item) => item.code === selectedModuleCode) ||
+    erpModulesMenu.find((item) => item.id === activeTab) ||
+    erpModulesMenu[0];
   const normalizedSearch = moduleSearch.trim().toLowerCase();
 
   return (
@@ -1377,16 +1457,16 @@ export function App() {
         <span className="text-xs font-mono text-blue-300">{menuOpen ? 'Fechar menu' : 'Abrir menu'}</span>
       </button>
 
-      {/* Sidebar Executiva Obsidian Navy */}
+      {/* Sidebar Executiva Obsidian Navy — 20 Menus e Submenus Oficiais */}
       <aside
         id="erp-navigation"
         className={`${
           menuOpen ? 'flex' : 'hidden'
-        } w-full lg:w-80 lg:flex lg:sticky lg:top-0 lg:h-screen bg-[#0B1120] text-slate-300 border-r border-slate-800/80 flex-col justify-between shrink-0 select-none shadow-2xl`}
+        } w-full lg:w-88 xl:w-96 lg:flex lg:sticky lg:top-0 lg:h-screen bg-[#0B1120] text-slate-300 border-r border-slate-800/80 flex-col justify-between shrink-0 select-none shadow-2xl`}
       >
-        <div>
+        <div className="flex flex-col min-h-0 flex-1">
           {/* Brand Header */}
-          <div className="p-5 border-b border-slate-800/80 bg-gradient-to-b from-slate-900/90 to-[#0B1120]">
+          <div className="p-5 border-b border-slate-800/80 bg-gradient-to-b from-slate-900/90 to-[#0B1120] shrink-0">
             <div className="flex items-center gap-3.5">
               <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-600 to-blue-700 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-blue-600/30 ring-1 ring-white/20">
                 Δ
@@ -1395,7 +1475,7 @@ export function App() {
                 <div className="flex items-center gap-2">
                   <h1 className="font-extrabold text-white tracking-tight text-base">DELTA ERP</h1>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-400/30">
-                    ENTERPRISE v1.4
+                    20 MÓDULOS
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 truncate mt-0.5">
@@ -1404,13 +1484,13 @@ export function App() {
               </div>
             </div>
 
-            {/* Busca Rápida de Módulos */}
-            <div className="mt-4 relative">
+            {/* Busca Rápida de Menus e Submenus */}
+            <div className="mt-3.5 relative">
               <input
                 type="text"
                 value={moduleSearch}
                 onChange={(e) => setModuleSearch(e.target.value)}
-                placeholder="Filtrar entre os 20 módulos..."
+                placeholder="Buscar menu ou submenu (01 a 20)..."
                 className="w-full bg-slate-900/90 border border-slate-800 focus:border-blue-500 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition"
               />
               <span className="absolute left-2.5 top-2 text-xs text-slate-500">🔎</span>
@@ -1426,65 +1506,109 @@ export function App() {
             </div>
           </div>
 
-          {/* Lista Categorizada de Módulos */}
-          <div
+          {/* Lista Oficial Numerada de 01 a 20 com Submenus */}
+          <nav
             aria-label="Módulos do ERP"
-            className="px-3 py-3 space-y-4 max-h-[calc(100vh-230px)] overflow-y-auto"
-            onClick={(event) => {
-              if (event.target instanceof Element && event.target.closest('button')) {
-                setMenuOpen(false);
-              }
-            }}
+            className="px-3 py-3 space-y-1.5 overflow-y-auto flex-1"
           >
-            {navGroups.map((group) => {
-              const visibleItems = group.items.filter(
+            {erpModulesMenu
+              .filter(
                 (item) =>
                   !normalizedSearch ||
-                  item.label.toLowerCase().includes(normalizedSearch) ||
                   item.code.includes(normalizedSearch) ||
-                  item.badge.toLowerCase().includes(normalizedSearch)
-              );
-              if (visibleItems.length === 0) return null;
-              return (
-                <div key={group.groupTitle}>
-                  <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">
-                    {group.groupTitle}
-                  </p>
-                  <nav className="space-y-1">
-                    {visibleItems.map((item) => {
-                      const isActive = activeTab === item.id;
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => (item.onSelect ? item.onSelect() : setActiveTab(item.id))}
-                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                            isActive
-                              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-950/60 ring-1 ring-white/15'
-                              : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'
+                  item.label.toLowerCase().includes(normalizedSearch) ||
+                  item.subtitle.toLowerCase().includes(normalizedSearch) ||
+                  item.submenus.some((s) => s.toLowerCase().includes(normalizedSearch))
+              )
+              .map((item) => {
+                const isSelected = currentNavItem.code === item.code;
+                return (
+                  <div
+                    key={item.code}
+                    className={`rounded-xl border transition-all ${
+                      isSelected
+                        ? 'bg-slate-900/95 border-blue-500/50 shadow-md shadow-blue-950/40'
+                        : 'border-transparent hover:bg-slate-900/60 hover:border-slate-800'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSelectMenuModule(item);
+                        setMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2.5 flex items-start justify-between gap-2"
+                    >
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <span
+                          className={`mt-0.5 px-1.5 py-0.5 rounded-md font-mono text-[11px] font-bold shrink-0 ${
+                            isSelected
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-slate-800 text-slate-300'
                           }`}
                         >
-                          <span className="flex items-center gap-2.5 truncate">
-                            <span className="text-sm leading-none">{item.icon}</span>
-                            <span className="font-mono text-[10px] opacity-60">{item.code}.</span>
-                            <span className="truncate font-semibold">{item.label}</span>
-                          </span>
-                          <span
-                            className={`text-[10px] px-2 py-0.5 rounded-full font-mono shrink-0 ${
-                              isActive
-                                ? 'bg-white/20 text-white font-semibold'
-                                : 'bg-slate-800/90 text-slate-400 border border-slate-700/70'
+                          {item.code}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs leading-none">{item.icon}</span>
+                            <span
+                              className={`text-xs font-bold truncate ${
+                                isSelected ? 'text-white' : 'text-slate-200'
+                              }`}
+                            >
+                              {item.label}
+                            </span>
+                          </div>
+                          <p
+                            className={`text-[11px] leading-snug mt-0.5 ${
+                              isSelected ? 'text-blue-200/90' : 'text-slate-400'
                             }`}
                           >
-                            {item.badge}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </nav>
-                </div>
-              );
-            })}
-          </div>
+                            {item.subtitle}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-mono shrink-0 ${
+                          isSelected
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30 font-semibold'
+                            : 'bg-slate-800/90 text-slate-400'
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    </button>
+
+                    {/* Submenus expansíveis do item selecionado (ou quando filtrado na busca) */}
+                    {(isSelected || Boolean(normalizedSearch)) && (
+                      <div className="px-3 pb-2.5 pt-1 pl-10 flex flex-wrap gap-1.5 border-t border-slate-800/70">
+                        {item.submenus.map((sub) => {
+                          const isSubActive = isSelected && selectedSubmenu === sub;
+                          return (
+                            <button
+                              key={sub}
+                              type="button"
+                              onClick={() => {
+                                handleSelectMenuModule(item, sub);
+                                setMenuOpen(false);
+                              }}
+                              className={`text-[10.5px] px-2 py-0.5 rounded-lg font-medium transition ${
+                                isSubActive
+                                  ? 'bg-blue-600 text-white font-semibold shadow-2xs'
+                                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                              }`}
+                            >
+                              {sub}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </nav>
         </div>
 
         {/* Rodapé de Telemetria da Sidebar */}
@@ -1594,6 +1718,46 @@ export function App() {
             </div>
           )}
 
+          {/* Barra Contextual do Menu & Submenus Ativos (01 a 20) */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-start gap-3.5 min-w-0">
+              <div className="w-11 h-11 rounded-xl bg-blue-600 text-white font-mono font-extrabold text-sm flex items-center justify-center shrink-0 shadow-sm">
+                {currentNavItem.code}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+                    {currentNavItem.code} · {currentNavItem.label}
+                  </h2>
+                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    Submenu ativo: {selectedSubmenu}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">{currentNavItem.subtitle}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {currentNavItem.submenus.map((sub) => {
+                const isSubActive = selectedSubmenu === sub;
+                return (
+                  <button
+                    key={sub}
+                    type="button"
+                    onClick={() => handleSelectMenuModule(currentNavItem, sub)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                      isSubActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-700'
+                    }`}
+                  >
+                    {sub}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* KPIs Superiores Interativos (Navegação Direta) */}
           <section aria-labelledby="indicators-heading">
             <h3 id="indicators-heading" className="sr-only">
@@ -1605,7 +1769,7 @@ export function App() {
                   {
                     label: `Caixa disponível (${selectedCompanyCode})`,
                     value: overview?.cashFlow?.currentBankBalance,
-                    detail: 'Financeiro · +18,4% M/M',
+                    detail: '02. Financeiro · +18,4% M/M',
                     subtext: `Projetado: ${
                       overview?.cashFlow?.projectedBalance == null
                         ? '—'
@@ -1613,43 +1777,46 @@ export function App() {
                     }`,
                     accent: 'from-emerald-500 to-teal-500',
                     valueColor: 'text-slate-950',
-                    tab: 'financial' as ActiveTab,
+                    moduleCode: '02',
                   },
                   {
                     label: 'Obrigações em aberto',
                     value: overview?.cashFlow?.openPayablesTotal,
-                    detail: 'Financeiro & Alçadas',
+                    detail: '17. Workflow & Alçadas',
                     subtext: `${
                       overview?.workflows?.filter((w: any) => w.status === 'PENDING').length ?? '—'
                     } aprovações pendentes`,
                     accent: 'from-amber-500 to-orange-500',
                     valueColor: 'text-amber-700',
-                    tab: 'financial' as ActiveTab,
+                    moduleCode: '02',
                   },
                   {
                     label: 'Resultado contábil (DRE)',
                     value: overview?.accountingReports?.dre?.netIncome,
-                    detail: 'Contabilidade · IFRS/CPC',
+                    detail: '03. Contabilidade · DRE',
                     subtext: `${overview?.journalEntries?.length ?? '—'} partidas dobradas no Diário`,
                     accent: 'from-blue-600 to-indigo-600',
                     valueColor: 'text-blue-700',
-                    tab: 'accounting' as ActiveTab,
+                    moduleCode: '03',
                   },
                   {
-                    label: 'Registros de auditoria',
+                    label: 'Eventos & Integrações',
                     value: overview?.auditLogs?.length,
-                    detail: 'Governança · ACID 100%',
-                    subtext: 'Assinaturas ICP-Brasil SHA-256',
+                    detail: '20. Integrações · ACID 100%',
+                    subtext: 'APIs, webhooks, outbox e auditoria',
                     accent: 'from-purple-600 to-indigo-600',
                     valueColor: 'text-slate-950',
-                    tab: 'audit' as ActiveTab,
+                    moduleCode: '20',
                   },
                 ] as const
               ).map((metric, index) => (
                 <button
                   key={metric.label}
                   type="button"
-                  onClick={() => setActiveTab(metric.tab)}
+                  onClick={() => {
+                    const targetMod = erpModulesMenu.find((m) => m.code === metric.moduleCode);
+                    if (targetMod) handleSelectMenuModule(targetMod);
+                  }}
                   className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
                 >
                   <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${metric.accent}`} />
@@ -1688,7 +1855,7 @@ export function App() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-300">
-                        Módulo 01 · Gestão empresarial
+                        Módulo 01 · Painéis executivos, operacionais e financeiros
                       </p>
                       <span className="rounded-full bg-emerald-500/20 border border-emerald-400/30 px-2.5 py-0.5 text-[11px] font-mono text-emerald-300">
                         CNPJ: {overview?.activeCompany?.taxId || '12.345.678/0001-90'}
@@ -1707,17 +1874,17 @@ export function App() {
                     </span>
                     <button
                       type="button"
-                      onClick={() => setActiveTab('financial')}
+                      onClick={() => handleSelectMenuModule(erpModulesMenu[1])}
                       className="rounded-xl bg-blue-600 hover:bg-blue-500 px-3.5 py-2 text-xs font-bold text-white transition"
                     >
-                      💎 Abrir Tesouraria
+                      💎 02. Financeiro
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveTab('enterprise_ops')}
+                      onClick={() => handleSelectMenuModule(erpModulesMenu[14])}
                       className="rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 px-3.5 py-2 text-xs font-semibold text-white transition"
                     >
-                      🌐 BI & Contratos
+                      📈 15. BI e Analytics
                     </button>
                   </div>
                 </div>
@@ -1790,44 +1957,59 @@ export function App() {
                 </details>
               </div>
 
-              {/* Matriz Executiva de Acesso Rápido aos Domínios */}
+              {/* Catálogo Oficial dos 20 Menus e Submenus */}
               <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-base font-bold text-slate-900">
-                      Mapa dos 20 Módulos Corporativos — Acesso Direto
+                      Catálogo Oficial de Menus e Submenus (01 a 20)
                     </h3>
                     <p className="text-xs text-slate-500">
-                      Clique em qualquer domínio abaixo para operar transações reais com validação contábil e fiscal
+                      Clique em qualquer módulo ou submenu abaixo para abrir diretamente sua área operacional
                     </p>
                   </div>
                   <span className="text-xs font-mono font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-                    20/20 Ativos
+                    20/20 Módulos Ativos
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                   {allNavItems.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => (item.onSelect ? item.onSelect() : setActiveTab(item.id))}
-                      className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-blue-50/60 hover:border-blue-300 text-left transition group"
+                    <div
+                      key={item.code}
+                      className="flex flex-col justify-between p-4 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-blue-50/40 hover:border-blue-300 transition group"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-base shadow-2xs group-hover:border-blue-300">
-                          {item.icon}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-mono font-bold text-slate-400">MÓDULO {item.code}</p>
-                          <p className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700">
-                            {item.label}
-                          </p>
-                        </div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectMenuModule(item)}
+                          className="w-full text-left flex items-start justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white font-mono text-xs font-bold shrink-0">
+                              {item.code}
+                            </span>
+                            <span className="text-sm font-bold text-slate-900 truncate group-hover:text-blue-700">
+                              {item.label}
+                            </span>
+                          </div>
+                          <span className="text-sm shrink-0">{item.icon}</span>
+                        </button>
+                        <p className="text-xs text-slate-600 mt-2 leading-relaxed">{item.subtitle}</p>
                       </div>
-                      <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-white text-slate-600 border border-slate-200 shrink-0">
-                        {item.badge}
-                      </span>
-                    </button>
+
+                      <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex flex-wrap gap-1">
+                        {item.submenus.map((sub) => (
+                          <button
+                            key={sub}
+                            type="button"
+                            onClick={() => handleSelectMenuModule(item, sub)}
+                            className="text-[10px] px-2 py-0.5 rounded-md bg-white hover:bg-blue-600 text-slate-700 hover:text-white border border-slate-200 font-medium transition"
+                          >
+                            {sub}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>

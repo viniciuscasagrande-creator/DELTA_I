@@ -19,6 +19,7 @@ import { InventoryService } from './modules/inventory/services/inventory.service
 import { AssetsService } from './modules/assets/services/assets.service';
 import { SalesAndPaymentsService } from './modules/sales-payments/services/sales-payments.service';
 import { EnterpriseOpsService } from './modules/enterprise-ops/services/enterprise-ops.service';
+import { assertCentralRouteAuthGuard } from './core/http/auth-guard.middleware';
 
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3000);
 const prisma = new PrismaService();
@@ -275,10 +276,44 @@ const SWAGGER_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-function sendJson(res: http.ServerResponse, statusCode: number, payload: unknown) {
+function resolveAllowedCorsOrigin(req?: http.IncomingMessage): string {
+  const configuredOrigins = (
+    process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173'
+  )
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  if (process.env.VERCEL_URL) {
+    configuredOrigins.push(`https://${process.env.VERCEL_URL}`);
+  }
+
+  const requestOrigin = req?.headers?.origin;
+  if (requestOrigin && configuredOrigins.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  return configuredOrigins[0] || 'http://localhost:5173';
+}
+
+function extractBearerToken(req: http.IncomingMessage): string | null {
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+  return null;
+}
+
+function sendJson(
+  res: http.ServerResponse,
+  statusCode: number,
+  payload: unknown,
+  req?: http.IncomingMessage
+) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': resolveAllowedCorsOrigin(req),
+    'Access-Control-Allow-Credentials': 'true',
+    'Vary': 'Origin',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers':
       'Content-Type, Authorization, X-Tenant-Id, X-Company-Id, Idempotency-Key',
@@ -287,6 +322,10 @@ function sendJson(res: http.ServerResponse, statusCode: number, payload: unknown
 }
 
 async function readJsonBody(req: http.IncomingMessage): Promise<any> {
+  // Compatibilidade caso plataforma serverless (ex: Vercel) já tenha parseado req.body
+  if ((req as any).body && typeof (req as any).body === 'object') {
+    return (req as any).body;
+  }
   return new Promise((resolve, reject) => {
     let raw = '';
     req.on('data', (chunk) => (raw += chunk));
@@ -307,6 +346,91 @@ async function buildExecutionContext(
   companyCode = 'EMP-01',
   roleCode = 'SUPER_ADMIN'
 ): Promise<TenantExecutionContext> {
+  const bearerToken = extractBearerToken(req);
+  const enforceJwt =
+    process.env.NODE_ENV === 'production' || process.env.ENFORCE_JWT_AUTH === 'true';
+
+  if (bearerToken) {
+    const claims = identityService.verifyJwt(bearerToken);
+    const dbUser = await prisma.user.findUnique({
+      where: { id: claims.sub },
+      include: {
+        companyAccesses: {
+          where: { isActive: true },
+          include: {
+            company: true,
+            role: {
+              include: {
+                permissions: { include: { permission: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!dbUser || dbUser.status !== 'ACTIVE') {
+      throw new Error('FORBIDDEN_USER_INACTIVE: Usuário do token JWT não está ativo.');
+    }
+
+    const activeAccess =
+      dbUser.companyAccesses.find((a) => a.company.code === companyCode) ||
+      dbUser.companyAccesses.find((a) => a.companyId === claims.companyId) ||
+      dbUser.companyAccesses[0];
+
+    if (!activeAccess) {
+      throw new Error('FORBIDDEN_NO_COMPANY_ACCESS: Usuário não possui acesso à empresa.');
+    }
+
+    const effectiveRoleCode = roleCode || activeAccess.role.code || claims.roleCode;
+    const roleRecord = await prisma.role.findFirst({
+      where: { tenantId: claims.tenantId, code: effectiveRoleCode },
+      include: { permissions: { include: { permission: true } } },
+    });
+
+    const dbPerms = (roleRecord || activeAccess.role).permissions.map(
+      (rp) => rp.permission.code
+    );
+
+    return {
+      requestId: `req_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      tenantId: claims.tenantId,
+      companyId: activeAccess.companyId,
+      userId: dbUser.id,
+      userEmail: dbUser.email,
+      userType: dbUser.userType as any,
+      roleCode: effectiveRoleCode,
+      permissions:
+        dbPerms.length > 0
+          ? dbPerms
+          : [
+              'admin:organization:manage',
+              'admin:rbac:manage',
+              'admin:modules:manage',
+              'admin:audit:read',
+              'financial:payable:read',
+              'financial:payable:create',
+              'financial:payable:approve',
+              'financial:settlement:execute',
+              'accounting:journal:post',
+              'workflow:approval:decide',
+              'events:settlement:read',
+            ],
+      maxApprovalAmount: roleRecord
+        ? Number(roleRecord.maxApprovalAmount)
+        : Number(activeAccess.role.maxApprovalAmount),
+      allowedCostCenterIds: activeAccess.allowedCostCenterIds,
+      ipAddress: req.socket?.remoteAddress || '127.0.0.1',
+      userAgent: req.headers['user-agent'] || 'Enterprise-ERP-Client',
+    };
+  }
+
+  if (enforceJwt) {
+    throw new Error(
+      'FORBIDDEN_AUTH_REQUIRED: Header Authorization Bearer <JWT> é obrigatório neste ambiente.'
+    );
+  }
+
   const tenant = await prisma.tenant.findFirst();
   const company = await prisma.company.findFirst({
     where: { tenantId: tenant?.id, code: companyCode },
@@ -341,16 +465,20 @@ async function buildExecutionContext(
       'workflow:approval:decide',
       'events:settlement:read',
     ],
-    maxApprovalAmount: role ? Number(role.maxApprovalAmount) : roleCode === 'FINANCIAL_MANAGER' ? 50000 : 999999999,
+    maxApprovalAmount: role
+      ? Number(role.maxApprovalAmount)
+      : roleCode === 'FINANCIAL_MANAGER'
+      ? 50000
+      : 999999999,
     allowedCostCenterIds: [],
-    ipAddress: req.socket.remoteAddress || '127.0.0.1',
+    ipAddress: req.socket?.remoteAddress || '127.0.0.1',
     userAgent: req.headers['user-agent'] || 'Enterprise-ERP-Client',
   };
 }
 
-const server = http.createServer(async (req, res) => {
+export async function requestHandler(req: http.IncomingMessage, res: http.ServerResponse) {
   if (req.method === 'OPTIONS') {
-    sendJson(res, 204, {});
+    sendJson(res, 204, {}, req);
     return;
   }
 
@@ -358,15 +486,40 @@ const server = http.createServer(async (req, res) => {
   const pathname = reqUrl.pathname;
 
   try {
-    // 1. Swagger UI & OpenAPI JSON
+    // 0. Guard Centralizado de Autenticação JWT (bloqueia rotas não públicas sem token em produção)
+    assertCentralRouteAuthGuard(req, pathname, identityService);
+
+    // 1. Swagger UI & OpenAPI JSON (Desativado por padrão em produção, salvo se ENABLE_SWAGGER_DOCS=true)
+    const swaggerAllowed =
+      process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER_DOCS === 'true';
+
     if (req.method === 'GET' && (pathname === '/api/docs' || pathname === '/api/docs/')) {
+      if (!swaggerAllowed) {
+        sendJson(
+          res,
+          403,
+          {
+            success: false,
+            error: {
+              code: 'SWAGGER_DISABLED_IN_PRODUCTION',
+              message: 'Documentação interativa desabilitada em produção por política de segurança.',
+            },
+          },
+          req
+        );
+        return;
+      }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(SWAGGER_HTML);
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/openapi.json') {
-      sendJson(res, 200, OPENAPI_SPEC);
+      if (!swaggerAllowed) {
+        sendJson(res, 403, { success: false, error: { code: 'SWAGGER_DISABLED_IN_PRODUCTION' } }, req);
+        return;
+      }
+      sendJson(res, 200, OPENAPI_SPEC, req);
       return;
     }
 
@@ -1155,6 +1308,7 @@ const server = http.createServer(async (req, res) => {
     // 10. Overview Consolidado (/api/foundation/overview)
     if (req.method === 'GET' && pathname === '/api/foundation/overview') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
+      await buildExecutionContext(req, companyCode);
 
       const tenant = await prisma.tenant.findFirst({
         include: {
@@ -1394,18 +1548,29 @@ const server = http.createServer(async (req, res) => {
       err?.message?.includes('LIMIT_EXCEEDED') ||
       err?.message?.includes('PROTECTED') ||
       err?.message?.includes('INVALID_');
-    sendJson(res, isForbidden ? 403 : 400, {
-      success: false,
-      error: {
-        code: isForbidden ? 'SECURITY_POLICY_REJECTION' : 'DOMAIN_VALIDATION_ERROR',
-        message: err?.message || 'Erro interno no processamento da requisição.',
+    sendJson(
+      res,
+      isForbidden ? 403 : 400,
+      {
+        success: false,
+        error: {
+          code: isForbidden ? 'SECURITY_POLICY_REJECTION' : 'DOMAIN_VALIDATION_ERROR',
+          message: err?.message || 'Erro interno no processamento da requisição.',
+        },
       },
-    });
+      req
+    );
   }
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`✅ [ENTERPRISE ERP API v1.4] Online em http://localhost:${PORT}/api`);
-  console.log(`🩺 [Health Check]           http://localhost:${PORT}/api/health`);
-  console.log(`📚 [Swagger API Docs]       http://localhost:${PORT}/api/docs`);
-});
+export default requestHandler;
+
+const server = http.createServer(requestHandler);
+
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
+  server.listen(PORT, () => {
+    console.log(`✅ [ENTERPRISE ERP API v1.4] Online em http://localhost:${PORT}/api`);
+    console.log(`🩺 [Health Check]           http://localhost:${PORT}/api/health`);
+    console.log(`📚 [Swagger API Docs]       http://localhost:${PORT}/api/docs`);
+  });
+}

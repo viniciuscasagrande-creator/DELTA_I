@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ErpModuleCode, TenantExecutionContext } from '@delta-erp/shared';
 import { IdentityService } from '../../apps/api/src/core/auth/identity.service';
 import { CoreSecurityPolicy } from '../../apps/api/src/core/permissions/permission.guard';
+import { assertCentralRouteAuthGuard } from '../../apps/api/src/core/http/auth-guard.middleware';
 
 describe('Entrega 2 — Testes de Segurança: Core Identity, RBAC/ABAC, Multiempresa e Anti-IDOR', () => {
   const baseContext: TenantExecutionContext = {
@@ -118,5 +119,77 @@ describe('Entrega 2 — Testes de Segurança: Core Identity, RBAC/ABAC, Multiemp
     expect(() =>
       CoreSecurityPolicy.assertModuleEnabled(activeModules, ErpModuleCode.MARKETING)
     ).toThrow(/MODULE_DISABLED/);
+  });
+
+  it('deve falhar na inicialização em produção caso JWT_ACCESS_SECRET ou MFA_TOTP_SECRET estejam ausentes', () => {
+    const prevEnv = process.env.NODE_ENV;
+    const prevJwt = process.env.JWT_ACCESS_SECRET;
+    const prevMfa = process.env.MFA_TOTP_SECRET;
+
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.JWT_ACCESS_SECRET;
+      delete process.env.MFA_TOTP_SECRET;
+
+      expect(() => new IdentityService({} as any, {} as any)).toThrow(/FATAL_SECURITY_CONFIG/);
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      if (prevJwt) process.env.JWT_ACCESS_SECRET = prevJwt;
+      if (prevMfa) process.env.MFA_TOTP_SECRET = prevMfa;
+    }
+  });
+
+  it('deve exigir header Authorization Bearer JWT nas rotas protegidas quando ENFORCE_JWT_AUTH=true', () => {
+    const prevEnforce = process.env.ENFORCE_JWT_AUTH;
+    const identity = new IdentityService({} as any, {} as any);
+    const validToken = identity.signJwt({
+      sub: 'user-01',
+      tenantId: 'tenant-delta-01',
+      companyId: 'company-hq-01',
+      email: 'admin@deltaerp.com.br',
+      roleCode: 'SUPER_ADMIN',
+      userType: 'INTERNAL',
+      mfaVerified: true,
+      sessionId: 'sess-guard-01',
+    });
+
+    try {
+      process.env.ENFORCE_JWT_AUTH = 'true';
+
+      // Rota pública (/api/health) passa sem token
+      expect(() =>
+        assertCentralRouteAuthGuard(
+          { method: 'GET', headers: {} } as any,
+          '/api/health',
+          identity
+        )
+      ).not.toThrow();
+
+      // Rota protegida (/api/financial/payables) sem token -> bloqueada!
+      expect(() =>
+        assertCentralRouteAuthGuard(
+          { method: 'POST', headers: {} } as any,
+          '/api/financial/payables',
+          identity
+        )
+      ).toThrow(/FORBIDDEN_AUTH_REQUIRED/);
+
+      // Rota protegida com token JWT válido -> autorizada!
+      const claims = assertCentralRouteAuthGuard(
+        {
+          method: 'POST',
+          headers: { authorization: `Bearer ${validToken}` },
+        } as any,
+        '/api/financial/payables',
+        identity
+      );
+      expect(claims?.sub).toBe('user-01');
+    } finally {
+      if (prevEnforce !== undefined) {
+        process.env.ENFORCE_JWT_AUTH = prevEnforce;
+      } else {
+        delete process.env.ENFORCE_JWT_AUTH;
+      }
+    }
   });
 });

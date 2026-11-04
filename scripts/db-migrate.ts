@@ -639,6 +639,33 @@ async function runMigration() {
       } else {
         console.log('ℹ️ Estrutura de banco de dados já está 100% atualizada.');
       }
+
+      // 3. Políticas PostgreSQL Row-Level Security (RLS) Multi-Tenant / Multiempresa
+      await client.query(`
+        DO $$
+        DECLARE
+          t text;
+        BEGIN
+          FOREACH t IN ARRAY ARRAY[
+            'core_companies', 'core_branches', 'core_departments', 'core_cost_centers',
+            'fin_bank_accounts', 'fin_accounts_payable', 'fin_accounts_receivable', 'fin_transactions',
+            'acc_chart_of_accounts', 'acc_journal_entries', 'fis_documents', 'hr_employees',
+            'crm_customers', 'pur_orders', 'inv_items', 'ast_fixed_assets', 'sls_orders',
+            'pay_gateway_transactions', 'ctr_contracts', 'sac_support_tickets', 'mkt_campaigns', 'doc_digital_documents'
+          ]
+          LOOP
+            EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_policies WHERE tablename = t AND policyname = 'tenant_isolation_rls_policy'
+            ) THEN
+              EXECUTE format(
+                'CREATE POLICY tenant_isolation_rls_policy ON %I USING (current_setting(''app.current_tenant_id'', true) IS NULL OR current_setting(''app.current_tenant_id'', true) = '''' OR "tenantId"::text = current_setting(''app.current_tenant_id'', true));',
+                t
+              );
+            END IF;
+          END LOOP;
+        END $$;
+      `);
     }
   } finally {
     client.release();

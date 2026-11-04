@@ -2,5 +2,9 @@
   "name": "@delta-erp/worker",
   "version": "1.0.0",
   "private": true,
-  "description": "DELTA ERP — Background Worker (Transactional Outbox Dispatcher, Contabilização Assíncrona, Conciliação e Notificações)"
+  "description": "DELTA ERP — Background Worker (Transactional Outbox Dispatcher, Contabilização Assíncrona, Conciliação e Notificações)",
+  "scripts": {
+    "dev": "tsx watch src/outbox-worker.ts",
+    "start": "tsx src/outbox-worker.ts"
+  }
 }

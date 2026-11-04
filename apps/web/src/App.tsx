@@ -1,7 +1,30 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { formatBRL } from '@delta-erp/shared';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE =
+  (import.meta as any).env?.VITE_API_BASE_URL ||
+  (typeof window !== 'undefined' &&
+  window.location.hostname !== 'localhost' &&
+  window.location.hostname !== '127.0.0.1'
+    ? '/api'
+    : 'http://localhost:3000/api');
+
+// Interceptor transparente para anexar automaticamente Authorization: Bearer <JWT> em todas as chamadas à API
+if (typeof window !== 'undefined' && !(window as any).__DELTA_ERP_FETCH_WRAPPED__) {
+  const nativeFetch = window.fetch.bind(window);
+  (window as any).__DELTA_ERP_FETCH_WRAPPED__ = true;
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const token = window.sessionStorage?.getItem('delta_erp_jwt');
+    if (token) {
+      const headers = new Headers(init?.headers || {});
+      if (!headers.has('Authorization')) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      return nativeFetch(input, { ...init, headers });
+    }
+    return nativeFetch(input, init);
+  };
+}
 
 type ActiveTab =
   | 'foundation'
@@ -192,6 +215,9 @@ export function App() {
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error?.message || 'Falha no login');
+      if (json.data?.accessToken && typeof window !== 'undefined') {
+        window.sessionStorage.setItem('delta_erp_jwt', json.data.accessToken);
+      }
       setAuthSession(json.data);
       setTotpInput(json.data.demoCurrentTotpCode || '');
       setActionMessage({
@@ -219,6 +245,9 @@ export function App() {
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error?.message || 'Falha no MFA');
+      if (json.data?.accessToken && typeof window !== 'undefined') {
+        window.sessionStorage.setItem('delta_erp_jwt', json.data.accessToken);
+      }
       setAuthSession({
         ...authSession,
         mfaRequired: false,

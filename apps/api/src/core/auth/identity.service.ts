@@ -52,8 +52,16 @@ export class IdentityService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService
   ) {
+    if (
+      process.env.NODE_ENV === 'production' &&
+      (!process.env.JWT_ACCESS_SECRET || !process.env.MFA_TOTP_SECRET)
+    ) {
+      throw new Error(
+        'FATAL_SECURITY_CONFIG: JWT_ACCESS_SECRET e MFA_TOTP_SECRET são obrigatórios em ambiente de produção.'
+      );
+    }
     this.jwtSecret =
-      process.env.JWT_ACCESS_SECRET || 'enterprise-erp-foundation-v1-jwt-secret-key-2026';
+      process.env.JWT_ACCESS_SECRET || 'enterprise-erp-dev-only-jwt-secret-key-2026';
   }
 
   /**
@@ -258,8 +266,15 @@ export class IdentityService {
       sessionId,
     });
 
-    const defaultMfaSecret = user.mfaSecretEncrypted || '3132333435363738393031323334353637383930';
-    const currentDemoTotp = IdentityService.generateTotpCode(defaultMfaSecret);
+    const configuredMfaSecret =
+      user.mfaSecretEncrypted ||
+      process.env.MFA_TOTP_SECRET ||
+      (process.env.NODE_ENV === 'production'
+        ? ''
+        : '3132333435363738393031323334353637383930');
+
+    const allowDemoTotp =
+      process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEMO_TOTP === 'true';
 
     await this.auditService.record({
       context: {
@@ -293,7 +308,9 @@ export class IdentityService {
       accessToken,
       sessionId,
       mfaRequired: user.mfaEnabled,
-      demoCurrentTotpCode: currentDemoTotp, // Exibido apenas em ambiente dev para facilitar validação MFA
+      ...(allowDemoTotp && configuredMfaSecret
+        ? { demoCurrentTotpCode: IdentityService.generateTotpCode(configuredMfaSecret) }
+        : {}),
       user: {
         id: user.id,
         email: user.email,
@@ -321,7 +338,15 @@ export class IdentityService {
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: session.userId } });
-    const secretHex = user?.mfaSecretEncrypted || '3132333435363738393031323334353637383930';
+    const secretHex =
+      user?.mfaSecretEncrypted ||
+      process.env.MFA_TOTP_SECRET ||
+      (process.env.NODE_ENV === 'production'
+        ? ''
+        : '3132333435363738393031323334353637383930');
+    if (!secretHex) {
+      throw new Error('MFA_SECRET_NOT_CONFIGURED: Segredo TOTP não configurado para o usuário.');
+    }
 
     if (!IdentityService.verifyTotpCode(secretHex, totpCode)) {
       throw new Error('INVALID_MFA_CODE: Código de autenticação multifator (TOTP) inválido.');

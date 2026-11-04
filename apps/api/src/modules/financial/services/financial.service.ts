@@ -107,19 +107,22 @@ export class FinancialService {
         },
       });
 
-      await this.auditService.record({
-        context,
-        moduleCode: ErpModuleCode.FINANCIAL,
-        entityName: 'AccountPayable',
-        entityId: created.id,
-        action: 'CREATE',
-        previousValues: null,
-        newValues: {
-          documentNumber: created.documentNumber,
-          netAmount: Number(created.netAmount),
-          status: created.status,
+      await this.auditService.record(
+        {
+          context,
+          moduleCode: ErpModuleCode.FINANCIAL,
+          entityName: 'AccountPayable',
+          entityId: created.id,
+          action: 'CREATE',
+          previousValues: null,
+          newValues: {
+            documentNumber: created.documentNumber,
+            netAmount: Number(created.netAmount),
+            status: created.status,
+          },
         },
-      });
+        tx
+      );
 
       return created;
     });
@@ -158,19 +161,22 @@ export class FinancialService {
         },
       });
 
-      await this.auditService.record({
-        context,
-        moduleCode: ErpModuleCode.FINANCIAL,
-        entityName: 'AccountReceivable',
-        entityId: created.id,
-        action: 'CREATE',
-        previousValues: null,
-        newValues: {
-          documentNumber: created.documentNumber,
-          grossAmount: dto.grossAmount,
-          netAmount,
+      await this.auditService.record(
+        {
+          context,
+          moduleCode: ErpModuleCode.FINANCIAL,
+          entityName: 'AccountReceivable',
+          entityId: created.id,
+          action: 'CREATE',
+          previousValues: null,
+          newValues: {
+            documentNumber: created.documentNumber,
+            grossAmount: dto.grossAmount,
+            netAmount,
+          },
         },
-      });
+        tx
+      );
 
       return created;
     });
@@ -383,20 +389,23 @@ export class FinancialService {
         },
       });
 
-      await this.auditService.record({
-        context,
-        moduleCode: ErpModuleCode.FINANCIAL,
-        entityName: 'AccountPayable',
-        entityId: payable.id,
-        action: 'SETTLE',
-        previousValues: { status: payable.status, paidAmount: Number(payable.paidAmount) },
-        newValues: {
-          status: newStatus,
-          paidAmount: newPaidAmount,
-          transactionId: transaction.id,
-          journalEntryNumber: journalEntry?.entryNumber,
+      await this.auditService.record(
+        {
+          context,
+          moduleCode: ErpModuleCode.FINANCIAL,
+          entityName: 'AccountPayable',
+          entityId: payable.id,
+          action: 'SETTLE',
+          previousValues: { status: payable.status, paidAmount: Number(payable.paidAmount) },
+          newValues: {
+            status: newStatus,
+            paidAmount: newPaidAmount,
+            transactionId: transaction.id,
+            journalEntryNumber: journalEntry?.entryNumber,
+          },
         },
-      });
+        tx
+      );
 
       return { payable: updatedPayable, transaction, journalEntry };
     });

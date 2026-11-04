@@ -382,7 +382,15 @@ async function buildExecutionContext(
       throw new Error('FORBIDDEN_NO_COMPANY_ACCESS: Usuário não possui acesso à empresa.');
     }
 
-    const effectiveRoleCode = roleCode || activeAccess.role.code || claims.roleCode;
+    if (enforceJwt && dbUser.mfaEnabled && !claims.mfaVerified) {
+      throw new Error(
+        'FORBIDDEN_MFA_REQUIRED: Autenticação multifator (TOTP MFA) pendente para esta sessão.'
+      );
+    }
+
+    // Segurança Anti-Escalonamento: quando autenticado via JWT, o perfil efetivo vem exclusivamente
+    // do vínculo real do usuário no banco (activeAccess.role.code), nunca do body/parâmetro do cliente.
+    const effectiveRoleCode = activeAccess.role.code || claims.roleCode;
     const roleRecord = await prisma.role.findFirst({
       where: { tenantId: claims.tenantId, code: effectiveRoleCode },
       include: { permissions: { include: { permission: true } } },
@@ -400,22 +408,7 @@ async function buildExecutionContext(
       userEmail: dbUser.email,
       userType: dbUser.userType as any,
       roleCode: effectiveRoleCode,
-      permissions:
-        dbPerms.length > 0
-          ? dbPerms
-          : [
-              'admin:organization:manage',
-              'admin:rbac:manage',
-              'admin:modules:manage',
-              'admin:audit:read',
-              'financial:payable:read',
-              'financial:payable:create',
-              'financial:payable:approve',
-              'financial:settlement:execute',
-              'accounting:journal:post',
-              'workflow:approval:decide',
-              'events:settlement:read',
-            ],
+      permissions: dbPerms,
       maxApprovalAmount: roleRecord
         ? Number(roleRecord.maxApprovalAmount)
         : Number(activeAccess.role.maxApprovalAmount),
@@ -525,12 +518,30 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     // 2. Health Check (/api/health, /api/health/ready, /api/system/capabilities)
     if (req.method === 'GET' && pathname === '/api/health/ready') {
-      await prisma.$queryRaw`SELECT 1`;
-      sendJson(res, 200, {
-        status: 'ok',
-        database: 'ok',
-        redis: 'ok (outbox-ready)',
-      });
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+        sendJson(
+          res,
+          200,
+          {
+            status: 'ok',
+            database: 'ok',
+            redis: 'ok (outbox-ready)',
+          },
+          req
+        );
+      } catch (dbErr: any) {
+        sendJson(
+          res,
+          503,
+          {
+            status: 'degraded',
+            database: 'unreachable',
+            message: dbErr?.message || 'Database readiness check failed',
+          },
+          req
+        );
+      }
       return;
     }
 
@@ -600,37 +611,40 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
     // 3. Core Identity
     if (req.method === 'POST' && pathname === '/api/core/auth/login') {
       const body = await readJsonBody(req);
+      const isDev = process.env.NODE_ENV !== 'production';
       const result = await identityService.login({
-        email: body.email || 'admin@deltaerp.com.br',
-        password: body.password || 'Delta@2026',
+        email: body.email || (isDev ? 'admin@deltaerp.com.br' : ''),
+        password: body.password || (isDev ? 'Delta@2026' : ''),
         companyCode: body.companyCode || 'EMP-01',
-        ipAddress: req.socket.remoteAddress || '127.0.0.1',
+        ipAddress: req.socket?.remoteAddress || '127.0.0.1',
         userAgent: req.headers['user-agent'] || 'Enterprise-ERP-Web',
       });
-      sendJson(res, 200, { success: true, data: result });
+      sendJson(res, 200, { success: true, data: result }, req);
       return;
     }
 
     if (req.method === 'POST' && pathname === '/api/core/auth/mfa/verify') {
       const body = await readJsonBody(req);
       const result = await identityService.verifyMfaSession(body.sessionId, body.totpCode);
-      sendJson(res, 200, { success: true, data: result });
+      sendJson(res, 200, { success: true, data: result }, req);
       return;
     }
 
     if (req.method === 'POST' && pathname === '/api/core/auth/password-recovery') {
       const body = await readJsonBody(req);
+      const isDev = process.env.NODE_ENV !== 'production';
       const result = await identityService.requestPasswordRecovery(
-        body.email || 'admin@deltaerp.com.br'
+        body.email || (isDev ? 'admin@deltaerp.com.br' : '')
       );
-      sendJson(res, 200, { success: true, data: result });
+      sendJson(res, 200, { success: true, data: result }, req);
       return;
     }
 
     const revokeSessionMatch = pathname.match(/^\/api\/core\/auth\/sessions\/([^/]+)\/revoke$/);
     if (req.method === 'POST' && revokeSessionMatch) {
+      await buildExecutionContext(req);
       const revoked = identityService.revokeSession(revokeSessionMatch[1]);
-      sendJson(res, 200, { success: true, data: revoked });
+      sendJson(res, 200, { success: true, data: revoked }, req);
       return;
     }
 
@@ -951,9 +965,10 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
     // 8.3 Módulo 06: Comercial e CRM — Clientes, Funil de Oportunidades, Comissões e Faturamento
     if (req.method === 'POST' && pathname === '/api/crm/customers') {
       const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
       const customer = await crmService.createCustomer({
         companyCode: body.companyCode || 'EMP-01',
-        roleCode: body.roleCode || 'SUPER_ADMIN',
+        roleCode: ctx.roleCode,
         code: body.code || `CLI-${Math.floor(1000 + Math.random() * 9000)}`,
         legalName: body.legalName,
         tradeName: body.tradeName,
@@ -962,15 +977,16 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         segment: body.segment || 'ENTERPRISE',
         creditLimit: Number(body.creditLimit || 250000),
       });
-      sendJson(res, 201, { success: true, data: customer });
+      sendJson(res, 201, { success: true, data: customer }, req);
       return;
     }
 
     if (req.method === 'POST' && pathname === '/api/crm/opportunities') {
       const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
       const created = await crmService.createOpportunity({
         companyCode: body.companyCode || 'EMP-01',
-        roleCode: body.roleCode || 'SUPER_ADMIN',
+        roleCode: ctx.roleCode,
         customerId: body.customerId,
         code: body.code || `OPP-2026-${Math.floor(100 + Math.random() * 900)}`,
         title: body.title,
@@ -981,31 +997,34 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         discountAmount: Number(body.discountAmount || 5000),
         commissionRatePct: Number(body.commissionRatePct || 5),
       });
-      sendJson(res, 201, { success: true, data: created });
+      sendJson(res, 201, { success: true, data: created }, req);
       return;
     }
 
     const winOppMatch = pathname.match(/^\/api\/crm\/opportunities\/([^/]+)\/win$/);
     if (req.method === 'POST' && winOppMatch) {
       const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
       const won = await crmService.winOpportunityAndBill({
         opportunityId: winOppMatch[1],
-        roleCode: body.roleCode || 'SUPER_ADMIN',
+        roleCode: ctx.roleCode,
       });
-      sendJson(res, 200, { success: true, data: won });
+      sendJson(res, 200, { success: true, data: won }, req);
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/crm/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
+      await buildExecutionContext(req, companyCode);
       const summary = await crmService.getCrmSummary(companyCode);
-      sendJson(res, 200, { success: true, data: summary });
+      sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
 
     // 8.4 Módulo 07: Compras e Suprimentos — Fornecedores, Mapa de 3 Cotações e Pedidos de Compra (PO)
     if (req.method === 'POST' && pathname === '/api/purchasing/suppliers') {
       const body = await readJsonBody(req);
+      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
       const supplier = await purchasingService.createSupplier({
         companyCode: body.companyCode || 'EMP-01',
         code: body.code || `FOR-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -1017,12 +1036,13 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         ratingScore: Number(body.ratingScore ?? 9.5),
         paymentTermsDays: Number(body.paymentTermsDays || 30),
       });
-      sendJson(res, 201, { success: true, data: supplier });
+      sendJson(res, 201, { success: true, data: supplier }, req);
       return;
     }
 
     if (req.method === 'POST' && pathname === '/api/purchasing/orders') {
       const body = await readJsonBody(req);
+      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
       const created = await purchasingService.createPurchaseOrder({
         companyCode: body.companyCode || 'EMP-01',
         supplierId: body.supplierId,
@@ -1034,31 +1054,38 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         quote3Amount: Number(body.quote3Amount || 42000),
         freightAmount: Number(body.freightAmount || 500),
       });
-      sendJson(res, 201, { success: true, data: created });
+      sendJson(res, 201, { success: true, data: created }, req);
       return;
     }
 
     const receivePoMatch = pathname.match(/^\/api\/purchasing\/orders\/([^/]+)\/receive$/);
     if (req.method === 'POST' && receivePoMatch) {
       const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(
+        req,
+        body.companyCode || 'EMP-01',
+        body.roleCode || 'FINANCIAL_MANAGER'
+      );
       const received = await purchasingService.approveAndReceivePurchaseOrder({
         purchaseOrderId: receivePoMatch[1],
-        roleCode: body.roleCode || 'FINANCIAL_MANAGER',
+        roleCode: ctx.roleCode,
       });
-      sendJson(res, 200, { success: true, data: received });
+      sendJson(res, 200, { success: true, data: received }, req);
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/purchasing/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
+      await buildExecutionContext(req, companyCode);
       const summary = await purchasingService.getPurchasingSummary(companyCode);
-      sendJson(res, 200, { success: true, data: summary });
+      sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
 
     // 8.5 Módulo 08: Estoque e Inventário — Materiais/SKUs, Custo Médio Ponderado Móvel e Ficha Kardex
     if (req.method === 'POST' && pathname === '/api/inventory/items') {
       const body = await readJsonBody(req);
+      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
       const item = await inventoryService.createInventoryItem({
         companyCode: body.companyCode || 'EMP-01',
         sku: body.sku || `MAT-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -1070,12 +1097,13 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         reorderPoint: Number(body.reorderPoint ?? 3),
         averageUnitCost: Number(body.averageUnitCost ?? 4500),
       });
-      sendJson(res, 201, { success: true, data: item });
+      sendJson(res, 201, { success: true, data: item }, req);
       return;
     }
 
     if (req.method === 'POST' && pathname === '/api/inventory/movements') {
       const body = await readJsonBody(req);
+      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
       const movement = await inventoryService.recordStockMovement({
         companyCode: body.companyCode || 'EMP-01',
         itemId: body.itemId,
@@ -1085,20 +1113,22 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         referenceDocument: body.referenceDocument,
         notes: body.notes,
       });
-      sendJson(res, 201, { success: true, data: movement });
+      sendJson(res, 201, { success: true, data: movement }, req);
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/inventory/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
+      await buildExecutionContext(req, companyCode);
       const summary = await inventoryService.getInventorySummary(companyCode);
-      sendJson(res, 200, { success: true, data: summary });
+      sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
 
     // 8.6 Módulo 09: Patrimônio e Depreciação Linear CPC 27 — Bens Imobilizados e Quotas Mensais
     if (req.method === 'POST' && pathname === '/api/assets/fixed-assets') {
       const body = await readJsonBody(req);
+      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
       const registered = await assetsService.registerFixedAsset({
         companyCode: body.companyCode || 'EMP-01',
         assetTag: body.assetTag || `PAT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -1109,24 +1139,26 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         residualValue: Number(body.residualValue ?? 12000),
         usefulLifeMonths: Number(body.usefulLifeMonths || 60),
       });
-      sendJson(res, 201, { success: true, data: registered });
+      sendJson(res, 201, { success: true, data: registered }, req);
       return;
     }
 
     if (req.method === 'POST' && pathname === '/api/assets/depreciation/run') {
       const body = await readJsonBody(req);
+      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
       const processed = await assetsService.runMonthlyDepreciation({
         companyCode: body.companyCode || 'EMP-01',
         competenceMonth: body.competenceMonth || '2026-11',
       });
-      sendJson(res, 201, { success: true, data: processed });
+      sendJson(res, 201, { success: true, data: processed }, req);
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/assets/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
+      await buildExecutionContext(req, companyCode);
       const summary = await assetsService.getAssetsSummary(companyCode);
-      sendJson(res, 200, { success: true, data: summary });
+      sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
 
@@ -1191,8 +1223,9 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'GET' && pathname === '/api/sales-payments/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
+      await buildExecutionContext(req, companyCode);
       const summary = await salesPaymentsService.getSalesAndPaymentsSummary(companyCode);
-      sendJson(res, 200, { success: true, data: summary });
+      sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
 
@@ -1264,8 +1297,9 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'GET' && pathname === '/api/enterprise-ops/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
+      await buildExecutionContext(req, companyCode);
       const summary = await enterpriseOpsService.getEnterpriseOpsSummary(companyCode);
-      sendJson(res, 200, { success: true, data: summary });
+      sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
 
@@ -1543,18 +1577,29 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
       },
     });
   } catch (err: any) {
+    const msg = String(err?.message || '');
+    const isUnauthorized =
+      msg.includes('INVALID_JWT_') ||
+      msg.includes('JWT_EXPIRED') ||
+      msg.includes('SESSION_REVOKED') ||
+      msg.includes('FORBIDDEN_AUTH_REQUIRED') ||
+      msg.includes('INVALID_CREDENTIALS');
     const isForbidden =
-      err?.message?.includes('FORBIDDEN') ||
-      err?.message?.includes('LIMIT_EXCEEDED') ||
-      err?.message?.includes('PROTECTED') ||
-      err?.message?.includes('INVALID_');
+      msg.includes('FORBIDDEN') ||
+      msg.includes('LIMIT_EXCEEDED') ||
+      msg.includes('PROTECTED');
+    const statusCode = isUnauthorized ? 401 : isForbidden ? 403 : 400;
     sendJson(
       res,
-      isForbidden ? 403 : 400,
+      statusCode,
       {
         success: false,
         error: {
-          code: isForbidden ? 'SECURITY_POLICY_REJECTION' : 'DOMAIN_VALIDATION_ERROR',
+          code: isUnauthorized
+            ? 'AUTHENTICATION_REQUIRED'
+            : isForbidden
+            ? 'SECURITY_POLICY_REJECTION'
+            : 'DOMAIN_VALIDATION_ERROR',
           message: err?.message || 'Erro interno no processamento da requisição.',
         },
       },

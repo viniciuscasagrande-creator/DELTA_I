@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "db:generate": "prisma generate --schema=../../prisma/schema.prisma",
     "dev": "vite --port 5173",
     "build": "vite build",
     "preview": "vite preview --port 5173"

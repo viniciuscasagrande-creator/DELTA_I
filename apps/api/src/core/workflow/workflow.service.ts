@@ -98,21 +98,24 @@ export class WorkflowService {
         },
       });
 
-      await this.auditService.record({
-        context,
-        moduleCode: ErpModuleCode.WORKFLOW,
-        entityName: 'WorkflowInstance',
-        entityId: wf.id,
-        action: dto.decision === 'APPROVED' ? 'APPROVE' : 'REJECT',
-        previousValues: { status: 'PENDING' },
-        newValues: {
-          status: dto.decision,
-          entityType: wf.entityType,
-          entityId: wf.entityId,
-          referenceAmount: refAmount,
-          decisionNotes: dto.decisionNotes.trim(),
+      await this.auditService.record(
+        {
+          context,
+          moduleCode: ErpModuleCode.WORKFLOW,
+          entityName: 'WorkflowInstance',
+          entityId: wf.id,
+          action: dto.decision === 'APPROVED' ? 'APPROVE' : 'REJECT',
+          previousValues: { status: 'PENDING' },
+          newValues: {
+            status: dto.decision,
+            entityType: wf.entityType,
+            entityId: wf.entityId,
+            referenceAmount: refAmount,
+            decisionNotes: dto.decisionNotes.trim(),
+          },
         },
-      });
+        tx
+      );
 
       return updatedWf;
     });

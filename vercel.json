@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "installCommand": "npm install --include=dev",
-  "buildCommand": "npm run db:generate && npm run build -w @delta-erp/web",
+  "buildCommand": "npm run db:generate && npm run build",
   "outputDirectory": "apps/web/dist",
   "rewrites": [
     {

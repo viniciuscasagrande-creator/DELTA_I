@@ -575,7 +575,7 @@ async function main() {
   }
 
   // 7.6 Fornecedores Homologados e Pedidos de Compra Iniciais (Módulo 07 — Compras e Suprimentos)
-  const supplier1 = await prisma.supplier.upsert({
+  await prisma.supplier.upsert({
     where: {
       companyId_code: {
         companyId: hqCompany.id,

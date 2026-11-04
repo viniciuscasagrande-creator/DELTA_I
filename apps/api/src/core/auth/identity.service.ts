@@ -82,8 +82,12 @@ export class IdentityService {
       const expected = IdentityService.hashPassword(plainPassword, salt);
       return crypto.timingSafeEqual(Buffer.from(storedHash), Buffer.from(expected));
     }
-    // Compatibilidade com senha padrão do seed de desenvolvimento ('Delta@2026')
-    if (storedHash === '$2b$12$EXAMPLE_HASH_FOR_DEV_ONLY' && plainPassword === 'Delta@2026') {
+    // Compatibilidade com senha padrão apenas em ambiente de desenvolvimento
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      storedHash === '$2b$12$EXAMPLE_HASH_FOR_DEV_ONLY' &&
+      plainPassword === 'Delta@2026'
+    ) {
       return true;
     }
     return false;
@@ -230,7 +234,7 @@ export class IdentityService {
       throw new Error('NO_COMPANY_ACCESS: Usuário não possui acesso autorizado a nenhuma empresa.');
     }
 
-    const sessionId = `sess_${crypto.randomUUID()}`;
+    const sessionId = `sess_${user.id}_${selectedAccess.companyId}_${crypto.randomUUID()}`;
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 8 * 60 * 60 * 1000);
 
@@ -329,15 +333,64 @@ export class IdentityService {
   }
 
   /**
-   * Valida segundo fator TOTP MFA e eleva a sessão para `mfaVerified = true`
+   * Valida segundo fator TOTP MFA e eleva a sessão para `mfaVerified = true`.
+   * Compatível com ambientes Serverless (Vercel): caso a instância não tenha a sessão em memória,
+   * reconstrói o contexto a partir do banco de dados usando o identificador assinado da sessão.
    */
   async verifyMfaSession(sessionId: string, totpCode: string) {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
+    let session = this.sessions.get(sessionId);
+    let user: any = null;
+
+    if (session) {
+      user = await this.prisma.user.findUnique({
+        where: { id: session.userId },
+        include: {
+          companyAccesses: {
+            where: { isActive: true },
+            include: { role: true },
+          },
+        },
+      });
+    } else if (sessionId && sessionId.startsWith('sess_')) {
+      const parts = sessionId.split('_');
+      const extractedUserId = parts[1];
+      const extractedCompanyId = parts[2];
+      if (extractedUserId) {
+        user = await this.prisma.user.findUnique({
+          where: { id: extractedUserId },
+          include: {
+            companyAccesses: {
+              where: { isActive: true },
+              include: { role: true },
+            },
+          },
+        });
+        if (user) {
+          const access =
+            user.companyAccesses.find((a: any) => a.companyId === extractedCompanyId) ||
+            user.companyAccesses[0];
+          const now = new Date();
+          session = {
+            sessionId,
+            userId: user.id,
+            tenantId: user.tenantId,
+            companyId: access?.companyId || extractedCompanyId,
+            email: user.email,
+            roleCode: access?.role?.code || 'VIEWER',
+            ipAddress: '127.0.0.1',
+            userAgent: 'Enterprise-ERP-Serverless',
+            mfaVerified: false,
+            createdAt: now.toISOString(),
+            expiresAt: new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString(),
+          };
+        }
+      }
+    }
+
+    if (!session || !user) {
       throw new Error('SESSION_NOT_FOUND: Sessão não encontrada ou expirada.');
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: session.userId } });
     const secretHex =
       user?.mfaSecretEncrypted ||
       process.env.MFA_TOTP_SECRET ||
@@ -397,10 +450,20 @@ export class IdentityService {
    * Solicita recuperação de senha com token de uso único (expiração de 15 minutos)
    */
   async requestPasswordRecovery(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findFirst({
-      where: { email: email.trim().toLowerCase() },
+      where: { email: normalizedEmail },
     });
+
     if (!user) {
+      if (process.env.NODE_ENV === 'production') {
+        // Evita enumeração de e-mails em produção
+        return {
+          message: 'Se o e-mail existir na organização, as instruções foram enviadas.',
+          expiresInMinutes: 15,
+          email: normalizedEmail,
+        };
+      }
       throw new Error('USER_NOT_FOUND: E-mail não localizado na organização.');
     }
 
@@ -413,7 +476,7 @@ export class IdentityService {
     });
 
     return {
-      resetToken,
+      ...(process.env.NODE_ENV !== 'production' ? { resetToken } : {}),
       expiresInMinutes: 15,
       email: user.email,
     };

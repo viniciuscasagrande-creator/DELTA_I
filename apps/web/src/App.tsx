@@ -9,13 +9,20 @@ const API_BASE =
     ? '/api'
     : 'http://localhost:3000/api');
 
-// Interceptor transparente para anexar automaticamente Authorization: Bearer <JWT> em todas as chamadas à API
+// Interceptor transparente para anexar Authorization: Bearer <JWT> exclusivamente em chamadas à API interna
 if (typeof window !== 'undefined' && !(window as any).__DELTA_ERP_FETCH_WRAPPED__) {
   const nativeFetch = window.fetch.bind(window);
   (window as any).__DELTA_ERP_FETCH_WRAPPED__ = true;
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const urlStr =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+        ? input.toString()
+        : input.url;
+    const isInternalApi = urlStr.startsWith(API_BASE) || urlStr.startsWith('/api');
     const token = window.sessionStorage?.getItem('delta_erp_jwt');
-    if (token) {
+    if (isInternalApi && token) {
       const headers = new Headers(init?.headers || {});
       if (!headers.has('Authorization')) {
         headers.set('Authorization', `Bearer ${token}`);
@@ -146,7 +153,7 @@ export function App() {
 
   // Módulos 10 & 11 Vendas & Pagamentos (PIX/Gateways) form state
   const [salesOrderNumber, setSalesOrderNumber] = useState('PV-2026-0002');
-  const [salespersonInput, setSalespersonInput] = useState('Marina Costa (Head Enterprise Sales)');
+  const [salespersonInput] = useState('Marina Costa (Head Enterprise Sales)');
   const [salesQuantity, setSalesQuantity] = useState('2');
   const [salesUnitPrice, setSalesUnitPrice] = useState('42000');
   const [salesDiscount, setSalesDiscount] = useState('2000');

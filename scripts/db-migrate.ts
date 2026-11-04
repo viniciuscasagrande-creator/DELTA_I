@@ -3,9 +3,46 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { Pool, neonConfig } from '@neondatabase/serverless';
+import { PrismaClient } from '@prisma/client';
 import ws from 'ws';
 
 neonConfig.webSocketConstructor = ws;
+
+interface SqlClientLike {
+  query(sql: string): Promise<{ rows: Array<Record<string, any>> }>;
+  release(): Promise<void>;
+}
+
+async function createMigrationClient(connectionString: string): Promise<SqlClientLike> {
+  if (connectionString.includes('neon.tech')) {
+    const pool = new Pool({ connectionString });
+    const client = await pool.connect();
+    return {
+      query: (sql: string) => client.query(sql),
+      release: async () => {
+        client.release();
+        await pool.end();
+      },
+    };
+  }
+
+  const prisma = new PrismaClient({ datasources: { db: { url: connectionString } } });
+  await prisma.$connect();
+  return {
+    query: async (sql: string) => {
+      const trimmed = sql.trim().toUpperCase();
+      if (trimmed.startsWith('SELECT')) {
+        const rows = await prisma.$queryRawUnsafe<Array<Record<string, any>>>(sql);
+        return { rows };
+      }
+      await prisma.$executeRawUnsafe(sql);
+      return { rows: [] };
+    },
+    release: async () => {
+      await prisma.$disconnect();
+    },
+  };
+}
 
 async function runMigration() {
   const migrationDir = path.resolve(process.cwd(), 'prisma/migrations/20261104165000_initial_foundation');
@@ -27,8 +64,7 @@ async function runMigration() {
   }
 
   console.log('🚀 [2/2] Sincronizando estruturas no PostgreSQL...');
-  const pool = new Pool({ connectionString });
-  const client = await pool.connect();
+  const client = await createMigrationClient(connectionString);
 
   try {
     const checkCore = await client.query(`SELECT to_regclass('public.core_tenants') AS exists_flag;`);
@@ -668,8 +704,7 @@ async function runMigration() {
       `);
     }
   } finally {
-    client.release();
-    await pool.end();
+    await client.release();
   }
 }
 

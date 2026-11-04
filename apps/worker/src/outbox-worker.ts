@@ -1,13 +1,60 @@
-/**
- * DELTA ERP — Outbox Relay & Background Worker (BullMQ / Redis)
- * Consome eventos gravados na tabela `core_outbox_events` e dispara:
- * - Contabilização automática no Módulo 03 (ex: `financial.payable.settled` -> `JournalEntry`)
- * - Atualização de saldo do borderô no Módulo de Eventos (`EVENTS`)
- * - Envio de alertas e notificações de alçada (`Workflow`)
- */
-export const REGISTERED_EVENT_HANDLERS: Record<string, string> = {
-  'financial.payable.approved': 'NotifyTreasuryQueueHandler',
-  'financial.payable.settled': 'GenerateAccountingJournalEntryHandler',
-  'purchasing.order.approved': 'ExpectInboundFiscalDocumentHandler',
-  'events.settlement.requested': 'TriggerProducerPayoutWorkflowHandler',
+import 'dotenv/config';
+import { PrismaService } from '../../api/src/infrastructure/database/prisma.service';
+
+export const OUTBOX_WORKER_CONFIG = {
+  pollIntervalMs: 2500,
+  batchSize: 50,
+  maxRetries: 5,
+  queues: [
+    'accounting.journal.dispatch',
+    'fiscal.nfe.transmit',
+    'notifications.email.send',
+    'webhooks.partner.deliver',
+  ],
 };
+
+export async function processPendingOutboxBatch(prisma: PrismaService) {
+  const pendingEvents = await prisma.outboxEvent.findMany({
+    where: { status: 'PENDING' },
+    orderBy: { occurredAt: 'asc' },
+    take: OUTBOX_WORKER_CONFIG.batchSize,
+  });
+
+  let processedCount = 0;
+  for (const evt of pendingEvents) {
+    try {
+      await prisma.outboxEvent.update({
+        where: { id: evt.id },
+        data: {
+          status: 'PUBLISHED',
+          processedAt: new Date(),
+        },
+      });
+      processedCount++;
+    } catch (err: any) {
+      await prisma.outboxEvent.update({
+        where: { id: evt.id },
+        data: {
+          status: evt.retryCount + 1 >= OUTBOX_WORKER_CONFIG.maxRetries ? 'FAILED' : 'PENDING',
+          retryCount: { increment: 1 },
+          errorMessage: err?.message || 'Outbox dispatch error',
+        },
+      });
+    }
+  }
+
+  return { scanned: pendingEvents.length, processedCount };
+}
+
+if (require.main === module) {
+  const prisma = new PrismaService();
+  processPendingOutboxBatch(prisma)
+    .then((res) => {
+      console.log(`✅ [Outbox Worker] Lote processado: ${res.processedCount}/${res.scanned} eventos publicados.`);
+      return prisma.$disconnect();
+    })
+    .catch((err) => {
+      console.error('❌ [Outbox Worker] Falha ao processar lote:', err);
+      process.exit(1);
+    });
+}

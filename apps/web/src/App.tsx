@@ -54,6 +54,14 @@ type ActiveTab =
 
 export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
+  const [sidebarCategory, setSidebarCategory] = useState<
+    'ALL' | 'FINANCE' | 'OPERATIONS' | 'COMMERCIAL' | 'GOVERNANCE'
+  >('ALL');
+  const [globalSearchQuery, setGlobalSearchQuery] = useState<string>('');
+  const [globalSearchOpen, setGlobalSearchOpen] = useState<boolean>(false);
+  const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
+  const [tableSearchQuery, setTableSearchQuery] = useState<string>('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('foundation');
   const [selectedModuleCode, setSelectedModuleCode] = useState<string>('01');
   const [selectedSubmenu, setSelectedSubmenu] = useState<string>('Painéis executivos');
@@ -67,6 +75,15 @@ export function App() {
   });
   const [overview, setOverview] = useState<any>(() => getFallbackOverview('EMP-01'));
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', themeMode);
+    if (themeMode === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [themeMode]);
 
   // Core Identity state
   const [loginEmail, setLoginEmail] = useState('admin@deltaerp.com.br');
@@ -1422,6 +1439,146 @@ export function App() {
     },
   ];
 
+  const renderModuleSvgIcon = (code: string) => {
+    const commonProps = {
+      className: 'w-4 h-4 shrink-0',
+      fill: 'none',
+      viewBox: '0 0 24 24',
+      stroke: 'currentColor',
+      strokeWidth: 2,
+    };
+    switch (code) {
+      case '01':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h6v6H4V6zm10 0h6v6h-6V6zM4 16h6v4H4v-4zm10-2h6v6h-6v-6z" />
+          </svg>
+        );
+      case '02':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.12-4 2.5S9.79 13 12 13s4 1.12 4 2.5S14.21 18 12 18m0-10V6m0 12v-2M3 12a9 9 0 1118 0 9 9 0 01-18 0z" />
+          </svg>
+        );
+      case '03':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-6 4h4M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" />
+          </svg>
+        );
+      case '04':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l2 2 4-4m5-5v12a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2h9l5 4z" />
+          </svg>
+        );
+      case '05':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        );
+      case '06':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+        );
+      case '07':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 6h12m-9 0a1 1 0 11-2 0 1 1 0 012 0zm8 0a1 1 0 11-2 0 1 1 0 012 0z" />
+          </svg>
+        );
+      case '08':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        );
+      case '09':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M15 9h.01M9 13h.01M15 13h.01M9 17h6" />
+          </svg>
+        );
+      case '10':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+          </svg>
+        );
+      case '11':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
+        );
+      case '12':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        );
+      case '13':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M18 10a6 6 0 00-12 0v4a2 2 0 002 2h1v-6H8a4 4 0 018 0h-1v6h1a2 2 0 002-2v-4zm-3 8a3 3 0 01-3 3H9" />
+          </svg>
+        );
+      case '14':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+          </svg>
+        );
+      case '15':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        );
+      case '16':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        );
+      case '17':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
+      case '18':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" />
+          </svg>
+        );
+      case '19':
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        );
+      default:
+        return (
+          <svg {...commonProps}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+        );
+    }
+  };
+
+  const getModuleCategory = (code: string): 'FINANCE' | 'OPERATIONS' | 'COMMERCIAL' | 'GOVERNANCE' => {
+    if (['01', '02', '03', '04', '11'].includes(code)) return 'FINANCE';
+    if (['05', '07', '08', '09'].includes(code)) return 'OPERATIONS';
+    if (['06', '10', '12', '13', '14'].includes(code)) return 'COMMERCIAL';
+    return 'GOVERNANCE';
+  };
+
   const handleSelectMenuModule = (
     item: (typeof erpModulesMenu)[number],
     submenu?: string
@@ -1436,46 +1593,168 @@ export function App() {
     setActiveTab(item.id);
   };
 
+  const handleExportSnapshotCsv = () => {
+    const rows = [
+      ['Codigo_Modulo', 'Modulo', 'Empresa', 'Indicador_Chave', 'Valor'],
+      ['01', 'Dashboard', selectedCompanyCode, 'Checklist_Fundacao', `${completedChecks}/8`],
+      ['02', 'Financeiro', selectedCompanyCode, 'Caixa_Disponivel', String(overview?.cashFlow?.currentBankBalance ?? 0)],
+      ['02', 'Financeiro', selectedCompanyCode, 'Caixa_Projetado_Liquido', String(overview?.cashFlow?.projectedBalance ?? 0)],
+      ['03', 'Contabilidade', selectedCompanyCode, 'Resultado_Liquido_DRE', String(overview?.accountingReports?.dre?.netIncome ?? 0)],
+      ['04', 'Fiscal', selectedCompanyCode, 'Total_Retencoes_Tributos', String(overview?.fiscalSummary?.totals?.withheldTaxes ?? 0)],
+      ['05', 'RH', selectedCompanyCode, 'Headcount_Ativo', String(overview?.hrSummary?.headcount?.active ?? 0)],
+      ['06', 'Comercial_CRM', selectedCompanyCode, 'Pipeline_Ponderado', String(overview?.crmSummary?.kpis?.weightedForecast ?? 0)],
+      ['07', 'Compras', selectedCompanyCode, 'Saving_Negociado', String(overview?.purchasingSummary?.kpis?.negotiatedSavings ?? 0)],
+      ['08', 'Estoque', selectedCompanyCode, 'Valor_Inventario_PMP', String(overview?.inventorySummary?.kpis?.totalInventoryValuation ?? 0)],
+      ['09', 'Patrimonio', selectedCompanyCode, 'Valor_Contabil_Liquido', String(overview?.assetsSummary?.kpis?.netBookValue ?? 0)],
+      ['10', 'Vendas', selectedCompanyCode, 'GMV_Faturado', String(overview?.salesPaymentsSummary?.kpis?.grossSalesVolume ?? 0)],
+      ['11', 'Pagamentos', selectedCompanyCode, 'Liquido_Adquirencia_Pix_Cartao', String(overview?.salesPaymentsSummary?.kpis?.netAcquirerSettlement ?? 0)],
+      ['12', 'Contratos', selectedCompanyCode, 'MRR_Contratual', String(overview?.enterpriseOpsSummary?.kpis?.activeContractsMrr ?? 0)],
+      ['13', 'SAC', selectedCompanyCode, 'SLA_Conformidade_Pct', String(overview?.enterpriseOpsSummary?.kpis?.slaComplianceRate ?? 99.4)],
+      ['14', 'Marketing', selectedCompanyCode, 'ROAS_Medio', String(overview?.enterpriseOpsSummary?.kpis?.averageRoas ?? 5.65)],
+      ['15', 'BI_Analytics', selectedCompanyCode, 'Previsao_Receita_IA', String(overview?.enterpriseOpsSummary?.biForecast?.projectedRevenue ?? 0)],
+      ['17', 'Workflow', selectedCompanyCode, 'Alcadas_Pendentes', String(overview?.workflows?.filter((w: any) => w.status === 'PENDING').length ?? 0)],
+    ];
+    const csvContent = 'data:text/csv;charset=utf-8,' + rows.map((r) => r.join(';')).join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `delta-erp-${selectedCompanyCode.toLowerCase()}-relatorio-executivo.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setActionMessage({
+      type: 'success',
+      text: `Relatório executivo consolidado (${selectedCompanyCode}) exportado em CSV com indicadores dos 20 módulos.`,
+    });
+  };
+
   const allNavItems = erpModulesMenu;
   const currentNavItem =
     erpModulesMenu.find((item) => item.code === selectedModuleCode) ||
     erpModulesMenu.find((item) => item.id === activeTab) ||
     erpModulesMenu[0];
   const normalizedSearch = moduleSearch.trim().toLowerCase();
+  const normalizedGlobalSearch = globalSearchQuery.trim().toLowerCase();
+
+  const globalSearchMatches = normalizedGlobalSearch
+    ? erpModulesMenu.flatMap((mod) => {
+        const modMatches =
+          mod.code.includes(normalizedGlobalSearch) ||
+          mod.label.toLowerCase().includes(normalizedGlobalSearch) ||
+          mod.subtitle.toLowerCase().includes(normalizedGlobalSearch);
+        const subMatches = mod.submenus.filter((s) => s.toLowerCase().includes(normalizedGlobalSearch));
+        if (subMatches.length > 0) {
+          return subMatches.map((sub) => ({ mod, sub }));
+        }
+        if (modMatches) {
+          return [{ mod, sub: mod.submenus[0] }];
+        }
+        return [];
+      })
+    : [];
+
+  const pendingWorkflowCount = overview?.workflows?.filter((w: any) => w.status === 'PENDING').length ?? 1;
+  const executiveAlerts = [
+    {
+      id: 'alert-workflow',
+      severity: 'amber',
+      title: `${pendingWorkflowCount} Alçada(s) Financeira(s) Pendente(s)`,
+      detail: 'Aprovação ABAC exigida para liquidação de títulos > R$ 10.000,00',
+      moduleCode: '17',
+      submenu: 'Aprovações',
+    },
+    {
+      id: 'alert-sped',
+      severity: 'emerald',
+      title: 'SPED Fiscal / EFD-Reinf & DCTFWeb Sincronizados',
+      detail: 'Retenções IRRF, CSRF (4,65%) e ISS auditadas na competência atual',
+      moduleCode: '04',
+      submenu: 'SPED',
+    },
+    {
+      id: 'alert-sac',
+      severity: 'blue',
+      title: `SLA de Atendimento SAC em ${overview?.enterpriseOpsSummary?.kpis?.slaComplianceRate ?? 99.4}%`,
+      detail: 'Chamados críticos e estornos monitorados em tempo real',
+      moduleCode: '13',
+      submenu: 'Chamados',
+    },
+    {
+      id: 'alert-outbox',
+      severity: 'purple',
+      title: `${overview?.outboxEvents?.length ?? 2} Eventos Transacionais no Outbox`,
+      detail: 'Webhooks assinados com HMAC-SHA256 e garantia de entrega ACID',
+      moduleCode: '20',
+      submenu: 'Webhooks',
+    },
+  ];
+
+  // Série histórica de 6 meses para os gráficos executivos
+  const baseBalance = Number(overview?.cashFlow?.currentBankBalance || 1250000);
+  const cashFlowChartSeries = [
+    { month: 'Jun', inflow: Math.round(baseBalance * 0.42), outflow: Math.round(baseBalance * 0.28), net: Math.round(baseBalance * 0.14) },
+    { month: 'Jul', inflow: Math.round(baseBalance * 0.48), outflow: Math.round(baseBalance * 0.31), net: Math.round(baseBalance * 0.17) },
+    { month: 'Ago', inflow: Math.round(baseBalance * 0.51), outflow: Math.round(baseBalance * 0.29), net: Math.round(baseBalance * 0.22) },
+    { month: 'Set', inflow: Math.round(baseBalance * 0.56), outflow: Math.round(baseBalance * 0.33), net: Math.round(baseBalance * 0.23) },
+    { month: 'Out', inflow: Math.round(baseBalance * 0.63), outflow: Math.round(baseBalance * 0.35), net: Math.round(baseBalance * 0.28) },
+    { month: 'Nov', inflow: Math.round(baseBalance * 0.72), outflow: Math.round(baseBalance * 0.36), net: Math.round(baseBalance * 0.36) },
+  ];
+  const maxChartVal = Math.max(...cashFlowChartSeries.map((d) => d.inflow), 1);
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-[#F1F5F9] text-slate-900">
+    <div className="erp-shell min-h-screen flex flex-col lg:flex-row bg-[#060B16] text-slate-100">
       {/* Botão Menu Mobile */}
-      <button
-        type="button"
-        aria-expanded={menuOpen}
-        aria-controls="erp-navigation"
-        className="lg:hidden bg-slate-950 px-5 py-4 text-left text-sm font-semibold text-white flex items-center justify-between border-b border-slate-800"
-        onClick={() => setMenuOpen((open) => !open)}
-      >
-        <span>Δ Delta ERP</span>
-        <span className="text-xs font-mono text-blue-300">{menuOpen ? 'Fechar menu' : 'Abrir menu'}</span>
-      </button>
+      <div className="lg:hidden bg-[#080E1E] px-4 py-3.5 text-white flex items-center justify-between border-b border-slate-800/90 sticky top-0 z-30">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-extrabold text-sm shadow-md">
+            Δ
+          </div>
+          <div>
+            <span className="font-extrabold tracking-tight text-sm block leading-none">DELTA ERP v1.4</span>
+            <span className="text-[10px] text-blue-400 font-mono">{currentNavItem.code}. {currentNavItem.label}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setThemeMode((t) => (t === 'dark' ? 'light' : 'dark'))}
+            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-200"
+          >
+            {themeMode === 'dark' ? '🌙 Dark' : '☀️ Light'}
+          </button>
+          <button
+            type="button"
+            aria-expanded={menuOpen}
+            aria-controls="erp-navigation"
+            onClick={() => setMenuOpen((open) => !open)}
+            className="px-3 py-1.5 rounded-lg bg-blue-600 text-xs font-bold text-white"
+          >
+            {menuOpen ? '✕ Fechar' : '☰ 20 Módulos'}
+          </button>
+        </div>
+      </div>
 
-      {/* Sidebar Executiva Obsidian Navy — 20 Menus e Submenus Oficiais */}
+      {/* Sidebar Executiva Premium Dark — 20 Menus e Submenus Oficiais */}
       <aside
         id="erp-navigation"
         className={`${
           menuOpen ? 'flex' : 'hidden'
-        } w-full lg:w-88 xl:w-96 lg:flex lg:sticky lg:top-0 lg:h-screen bg-[#0B1120] text-slate-300 border-r border-slate-800/80 flex-col justify-between shrink-0 select-none shadow-2xl`}
+        } w-full lg:w-[330px] xl:w-[356px] lg:flex lg:sticky lg:top-0 lg:h-screen bg-[#070C18] text-slate-300 border-r border-slate-800/80 flex-col justify-between shrink-0 select-none shadow-2xl z-20`}
       >
         <div className="flex flex-col min-h-0 flex-1">
           {/* Brand Header */}
-          <div className="p-5 border-b border-slate-800/80 bg-gradient-to-b from-slate-900/90 to-[#0B1120] shrink-0">
+          <div className="p-4 sm:p-5 border-b border-slate-800/80 bg-gradient-to-b from-[#0D162B] to-[#070C18] shrink-0">
             <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-600 to-blue-700 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-blue-600/30 ring-1 ring-white/20">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-blue-600/35 ring-1 ring-blue-400/30">
                 Δ
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="font-extrabold text-white tracking-tight text-base">DELTA ERP</h1>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-400/30">
-                    20 MÓDULOS
+                  <h1 className="font-display font-extrabold text-white tracking-tight text-base">
+                    DELTA ERP
+                  </h1>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-400/30">
+                    v1.4 ENTERPRISE
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 truncate mt-0.5">
@@ -1490,10 +1769,18 @@ export function App() {
                 type="text"
                 value={moduleSearch}
                 onChange={(e) => setModuleSearch(e.target.value)}
-                placeholder="Buscar menu ou submenu (01 a 20)..."
-                className="w-full bg-slate-900/90 border border-slate-800 focus:border-blue-500 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition"
+                placeholder="Filtrar menu ou submenu (01 a 20)..."
+                className="w-full bg-[#0B1222] border border-slate-800/90 focus:border-blue-500 rounded-xl pl-8 pr-7 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition"
               />
-              <span className="absolute left-2.5 top-2 text-xs text-slate-500">🔎</span>
+              <svg
+                className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+              </svg>
               {moduleSearch && (
                 <button
                   type="button"
@@ -1504,33 +1791,68 @@ export function App() {
                 </button>
               )}
             </div>
+
+            {/* Pílulas Inteligentes de Agrupamento de Módulos */}
+            <div className="mt-2.5 flex flex-wrap gap-1">
+              {(
+                [
+                  { id: 'ALL', label: 'Todos (20)' },
+                  { id: 'FINANCE', label: 'Finanças & Fiscal' },
+                  { id: 'OPERATIONS', label: 'Supply & RH' },
+                  { id: 'COMMERCIAL', label: 'Comercial & CX' },
+                  { id: 'GOVERNANCE', label: 'BI & Gov.' },
+                ] as const
+              ).map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSidebarCategory(cat.id)}
+                  className={`text-[10px] px-2 py-1 rounded-lg font-semibold transition ${
+                    sidebarCategory === cat.id
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-900/90 text-slate-400 hover:text-slate-200 border border-slate-800/80'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Lista Oficial Numerada de 01 a 20 com Submenus */}
+          {/* Lista Oficial Numerada de 01 a 20 com Ícones Vetoriais e Submenus */}
           <nav
             aria-label="Módulos do ERP"
             className="px-3 py-3 space-y-1.5 overflow-y-auto flex-1"
           >
             {erpModulesMenu
-              .filter(
-                (item) =>
+              .filter((item) => {
+                const matchesCategory =
+                  sidebarCategory === 'ALL' || getModuleCategory(item.code) === sidebarCategory;
+                const matchesSearch =
                   !normalizedSearch ||
                   item.code.includes(normalizedSearch) ||
                   item.label.toLowerCase().includes(normalizedSearch) ||
                   item.subtitle.toLowerCase().includes(normalizedSearch) ||
-                  item.submenus.some((s) => s.toLowerCase().includes(normalizedSearch))
-              )
+                  item.submenus.some((s) => s.toLowerCase().includes(normalizedSearch));
+                return matchesCategory && matchesSearch;
+              })
               .map((item) => {
                 const isSelected = currentNavItem.code === item.code;
                 return (
                   <div
                     key={item.code}
-                    className={`rounded-xl border transition-all ${
+                    className={`relative rounded-xl border transition-all ${
                       isSelected
-                        ? 'bg-slate-900/95 border-blue-500/50 shadow-md shadow-blue-950/40'
-                        : 'border-transparent hover:bg-slate-900/60 hover:border-slate-800'
+                        ? 'bg-gradient-to-r from-blue-950/75 via-[#0E182D] to-[#0B1324] border-blue-500/50 shadow-lg shadow-blue-950/40'
+                        : 'border-transparent hover:bg-slate-900/65 hover:border-slate-800/90'
                     }`}
                   >
+                    {isSelected && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute left-0 top-2.5 bottom-2.5 w-1 rounded-r-full bg-blue-500 shadow-[0_0_10px_#3b82f6]"
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -1540,18 +1862,26 @@ export function App() {
                       className="w-full text-left px-3 py-2.5 flex items-start justify-between gap-2"
                     >
                       <div className="flex items-start gap-2.5 min-w-0">
-                        <span
-                          className={`mt-0.5 px-1.5 py-0.5 rounded-md font-mono text-[11px] font-bold shrink-0 ${
+                        <div
+                          className={`mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition ${
                             isSelected
-                              ? 'bg-blue-600 text-white shadow-xs'
-                              : 'bg-slate-800 text-slate-300'
+                              ? 'bg-blue-600 text-white shadow-md shadow-blue-600/35'
+                              : 'bg-slate-900 text-slate-400 border border-slate-800'
                           }`}
                         >
-                          {item.code}
-                        </span>
+                          {renderModuleSvgIcon(item.code)}
+                        </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs leading-none">{item.icon}</span>
+                            <span
+                              className={`font-mono text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                isSelected
+                                  ? 'bg-blue-500/25 text-blue-300'
+                                  : 'bg-slate-800/80 text-slate-400'
+                              }`}
+                            >
+                              {item.code}
+                            </span>
                             <span
                               className={`text-xs font-bold truncate ${
                                 isSelected ? 'text-white' : 'text-slate-200'
@@ -1561,7 +1891,7 @@ export function App() {
                             </span>
                           </div>
                           <p
-                            className={`text-[11px] leading-snug mt-0.5 ${
+                            className={`text-[11px] leading-snug mt-0.5 line-clamp-2 ${
                               isSelected ? 'text-blue-200/90' : 'text-slate-400'
                             }`}
                           >
@@ -1573,7 +1903,7 @@ export function App() {
                         className={`text-[10px] px-2 py-0.5 rounded-full font-mono shrink-0 ${
                           isSelected
                             ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30 font-semibold'
-                            : 'bg-slate-800/90 text-slate-400'
+                            : 'bg-slate-900/90 text-slate-400 border border-slate-800/80'
                         }`}
                       >
                         {item.badge}
@@ -1582,7 +1912,7 @@ export function App() {
 
                     {/* Submenus expansíveis do item selecionado (ou quando filtrado na busca) */}
                     {(isSelected || Boolean(normalizedSearch)) && (
-                      <div className="px-3 pb-2.5 pt-1 pl-10 flex flex-wrap gap-1.5 border-t border-slate-800/70">
+                      <div className="px-3 pb-2.5 pt-1.5 pl-11 flex flex-wrap gap-1.5 border-t border-slate-800/70">
                         {item.submenus.map((sub) => {
                           const isSubActive = isSelected && selectedSubmenu === sub;
                           return (
@@ -1593,13 +1923,14 @@ export function App() {
                                 handleSelectMenuModule(item, sub);
                                 setMenuOpen(false);
                               }}
-                              className={`text-[10.5px] px-2 py-0.5 rounded-lg font-medium transition ${
+                              className={`text-[10.5px] px-2.5 py-1 rounded-lg font-medium transition flex items-center gap-1 ${
                                 isSubActive
-                                  ? 'bg-blue-600 text-white font-semibold shadow-2xs'
-                                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                                  ? 'bg-blue-600 text-white font-semibold shadow-sm shadow-blue-600/30'
+                                  : 'bg-slate-900/90 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800'
                               }`}
                             >
-                              {sub}
+                              {isSubActive && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                              <span>{sub}</span>
                             </button>
                           );
                         })}
@@ -1612,9 +1943,12 @@ export function App() {
         </div>
 
         {/* Rodapé de Telemetria da Sidebar */}
-        <div className="p-3.5 border-t border-slate-800/80 bg-slate-950/60 space-y-2">
-          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px]">
-            <span className="text-slate-400">Isolamento RLS Multi-Tenant</span>
+        <div className="p-3.5 border-t border-slate-800/80 bg-[#050912] space-y-2">
+          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-800/90 text-[11px]">
+            <span className="text-slate-400 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              RLS Multi-Tenant
+            </span>
             <span className="font-mono font-semibold text-emerald-400">ATIVO • ACID</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -1622,7 +1956,7 @@ export function App() {
               href={`${API_BASE}/docs`}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900 hover:bg-blue-950/70 text-[11px] font-medium text-slate-300 hover:text-blue-300 border border-slate-800 transition"
+              className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/90 hover:bg-blue-950/70 text-[11px] font-medium text-slate-300 hover:text-blue-300 border border-slate-800 transition"
             >
               <span>📚 OpenAPI</span>
               <span>↗</span>
@@ -1631,7 +1965,7 @@ export function App() {
               href={`${API_BASE}/health`}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900 hover:bg-emerald-950/60 text-[11px] font-medium text-slate-300 hover:text-emerald-300 border border-slate-800 transition"
+              className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/90 hover:bg-emerald-950/60 text-[11px] font-medium text-slate-300 hover:text-emerald-300 border border-slate-800 transition"
             >
               <span>🩺 Health</span>
               <span className="font-mono text-emerald-400">
@@ -1644,31 +1978,190 @@ export function App() {
 
       {/* Área Principal */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar Contextual Glassmorphic */}
-        <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/90 px-4 py-3 sm:px-8 flex flex-wrap gap-3 items-center justify-between shadow-xs">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              {isLiveApiConnected ? 'ERP Integrado v1.4 · Online' : 'ERP Integrado v1.4 · Cloud Snapshot'}
+        {/* Topbar Executiva com Pesquisa Global, Alertas, Tema e Contexto Multi-Empresa */}
+        <header
+          className={`sticky top-0 z-20 backdrop-blur-xl border-b px-4 py-3 sm:px-8 flex flex-wrap gap-3 items-center justify-between transition ${
+            themeMode === 'dark'
+              ? 'bg-[#080E1E]/90 border-slate-800/80 text-slate-100'
+              : 'bg-white/90 border-slate-200/90 text-slate-900'
+          }`}
+        >
+          {/* Status + Breadcrumb + Busca Global */}
+          <div className="flex items-center gap-3 flex-1 min-w-[260px]">
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              {isLiveApiConnected ? 'Cloud Live v1.4' : 'Snapshot v1.4'}
             </span>
-            <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 truncate">
-              <span className="text-slate-300">/</span>
-              <span className="font-semibold text-slate-800">
-                {currentNavItem.icon} {currentNavItem.code}. {currentNavItem.label}
+
+            {/* Barra de Pesquisa Global nos 20 Módulos e 74 Submenus */}
+            <div className="relative flex-1 max-w-md">
+              <input
+                type="text"
+                value={globalSearchQuery}
+                onFocus={() => setGlobalSearchOpen(true)}
+                onBlur={() => setTimeout(() => setGlobalSearchOpen(false), 180)}
+                onChange={(e) => {
+                  setGlobalSearchQuery(e.target.value);
+                  setGlobalSearchOpen(true);
+                }}
+                placeholder="Pesquisa global: módulo, submenu, DRE, SPED, Pix, NF-e..."
+                className={`w-full rounded-xl pl-9 pr-14 py-1.5 text-xs border transition focus:outline-none ${
+                  themeMode === 'dark'
+                    ? 'bg-[#0D162B] border-slate-700/80 text-slate-100 placeholder-slate-400 focus:border-blue-500'
+                    : 'bg-slate-100 border-slate-300 text-slate-900 placeholder-slate-500 focus:border-blue-600'
+                }`}
+              />
+              <svg
+                className="w-4 h-4 text-slate-400 absolute left-3 top-2"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+              </svg>
+              <span className="absolute right-2.5 top-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-300 border border-slate-700">
+                20 Mód.
               </span>
+
+              {/* Dropdown de Resultados da Pesquisa Global */}
+              {globalSearchOpen && normalizedGlobalSearch && (
+                <div className="absolute left-0 right-0 mt-2 rounded-2xl bg-[#0D1526] border border-slate-700 shadow-2xl p-2 z-50 max-h-80 overflow-y-auto">
+                  <div className="px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                    Resultados nos 20 Módulos ({globalSearchMatches.length})
+                  </div>
+                  {globalSearchMatches.length === 0 ? (
+                    <p className="px-3 py-3 text-xs text-slate-400">
+                      Nenhum módulo ou submenu encontrado para "{globalSearchQuery}".
+                    </p>
+                  ) : (
+                    globalSearchMatches.map(({ mod, sub }) => (
+                      <button
+                        key={`${mod.code}-${sub}`}
+                        type="button"
+                        onMouseDown={() => {
+                          handleSelectMenuModule(mod, sub);
+                          setGlobalSearchQuery('');
+                          setGlobalSearchOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-blue-600/20 flex items-center justify-between gap-2 transition"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="px-1.5 py-0.5 rounded bg-blue-600 text-white font-mono text-[10px] font-bold">
+                            {mod.code}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-white truncate">
+                              {mod.label} <span className="text-blue-400">→ {sub}</span>
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate">{mod.subtitle}</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-mono text-blue-300 shrink-0">Abrir ↗</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <label htmlFor="erp-role" className="text-xs font-medium text-slate-500">
+          {/* Controles Executivos da Direita: Alertas, Exportar CSV, Tema, Perfil e Empresa */}
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+            {/* Central de Alertas e Notificações */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setNotificationsOpen((prev) => !prev)}
+                className={`relative px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition ${
+                  themeMode === 'dark'
+                    ? 'bg-[#0D162B] hover:bg-slate-800 border-slate-700/80 text-slate-200'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                }`}
+              >
+                <span>🔔 Alertas</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                  {executiveAlerts.length}
+                </span>
+              </button>
+
+              {notificationsOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-[#0D1526] border border-slate-700 shadow-2xl p-3 z-50 space-y-2">
+                  <div className="flex items-center justify-between px-1 pb-1 border-b border-slate-800">
+                    <span className="text-xs font-bold text-white">Central de Alertas Operacionais</span>
+                    <button
+                      type="button"
+                      onClick={() => setNotificationsOpen(false)}
+                      className="text-[11px] text-slate-400 hover:text-white"
+                    >
+                      Fechar ✕
+                    </button>
+                  </div>
+                  {executiveAlerts.map((alert) => (
+                    <button
+                      key={alert.id}
+                      type="button"
+                      onClick={() => {
+                        const target = erpModulesMenu.find((m) => m.code === alert.moduleCode);
+                        if (target) handleSelectMenuModule(target, alert.submenu);
+                        setNotificationsOpen(false);
+                      }}
+                      className="w-full text-left p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 transition block"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-100">{alert.title}</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">
+                          Mód. {alert.moduleCode}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1">{alert.detail}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Botão Exportar CSV */}
+            <button
+              type="button"
+              onClick={handleExportSnapshotCsv}
+              className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition ${
+                themeMode === 'dark'
+                  ? 'bg-[#0D162B] hover:bg-blue-950/60 border-slate-700/80 text-blue-300'
+                  : 'bg-slate-100 hover:bg-blue-50 border-slate-300 text-blue-700'
+              }`}
+            >
+              <span>⬇ Exportar CSV</span>
+            </button>
+
+            {/* Seletor de Tema Dark Premium / Light */}
+            <button
+              type="button"
+              onClick={() => setThemeMode((t) => (t === 'dark' ? 'light' : 'dark'))}
+              title="Alternar tema Dark Premium / Light Corporativo"
+              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition ${
+                themeMode === 'dark'
+                  ? 'bg-blue-600/20 border-blue-500/40 text-blue-300 hover:bg-blue-600/30'
+                  : 'bg-slate-900 border-slate-700 text-white hover:bg-slate-800'
+              }`}
+            >
+              <span>{themeMode === 'dark' ? '🌙 Dark Premium' : '☀️ Tema Light'}</span>
+            </button>
+
+            {/* Seletor de Perfil RBAC */}
+            <div className="flex min-w-0 items-center gap-1.5">
+              <label htmlFor="erp-role" className="sr-only">
                 Perfil operacional
               </label>
               <select
                 id="erp-role"
                 value={selectedRoleCode}
                 onChange={(e) => setSelectedRoleCode(e.target.value)}
-                className="text-xs font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-800 focus:outline-none focus:border-blue-600 transition"
+                className={`text-xs font-semibold rounded-xl px-2.5 py-1.5 border focus:outline-none transition ${
+                  themeMode === 'dark'
+                    ? 'bg-[#0D162B] border-slate-700/80 text-slate-200'
+                    : 'bg-slate-50 border-slate-300 text-slate-800'
+                }`}
               >
                 <option value="FINANCIAL_MANAGER">FINANCIAL_MANAGER (Alçada R$ 50k)</option>
                 <option value="DIRECTOR">DIRECTOR / CFO (Alçada R$ 500k)</option>
@@ -1676,18 +2169,23 @@ export function App() {
               </select>
             </div>
 
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <label htmlFor="erp-company" className="text-xs font-medium text-slate-500">
+            {/* Seletor de Empresa Multi-CNPJ */}
+            <div className="flex min-w-0 items-center gap-1.5">
+              <label htmlFor="erp-company" className="sr-only">
                 Empresa ativa
               </label>
               <select
                 id="erp-company"
                 value={selectedCompanyCode}
                 onChange={(e) => setSelectedCompanyCode(e.target.value)}
-                className="max-w-full text-xs font-bold bg-blue-50/90 hover:bg-blue-100/70 border border-blue-200 rounded-xl px-3 py-1.5 text-blue-800 focus:outline-none focus:border-blue-600 transition"
+                className={`max-w-full text-xs font-bold rounded-xl px-3 py-1.5 border focus:outline-none transition ${
+                  themeMode === 'dark'
+                    ? 'bg-blue-600/20 border-blue-500/40 text-blue-200'
+                    : 'bg-blue-50 border-blue-200 text-blue-900'
+                }`}
               >
                 {overview?.companies?.map((comp: any) => (
-                  <option key={comp.id} value={comp.code}>
+                  <option key={comp.id} value={comp.code} className="bg-slate-900 text-white">
                     {comp.code} — {comp.tradeName} ({comp.taxId})
                   </option>
                 ))}
@@ -1696,120 +2194,170 @@ export function App() {
           </div>
         </header>
 
-        <main className="w-full px-4 py-6 sm:px-8 sm:py-8 space-y-6 max-w-7xl mx-auto">
+        <main className="w-full px-4 py-6 sm:px-8 sm:py-7 space-y-6 max-w-[1440px] mx-auto">
           {actionMessage && (
             <div
-              className={`p-4 rounded-xl border text-sm font-medium flex items-center justify-between shadow-sm ${
+              className={`p-4 rounded-2xl border text-sm font-medium flex items-center justify-between shadow-lg ${
                 actionMessage.type === 'success'
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                   : 'bg-rose-50 border-rose-200 text-rose-900'
               }`}
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2.5">
                 <span>{actionMessage.type === 'success' ? '✅' : '⚠️'}</span>
                 <span>{actionMessage.text}</span>
               </span>
               <button
                 onClick={() => setActionMessage(null)}
-                className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white/80 hover:bg-white border border-current/20 ml-4"
+                className="text-xs font-semibold px-3 py-1 rounded-lg bg-slate-900/40 hover:bg-slate-900/70 text-white border border-white/15 ml-4"
               >
                 Fechar
               </button>
             </div>
           )}
 
-          {/* Barra Contextual do Menu & Submenus Ativos (01 a 20) */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="flex items-start gap-3.5 min-w-0">
-              <div className="w-11 h-11 rounded-xl bg-blue-600 text-white font-mono font-extrabold text-sm flex items-center justify-center shrink-0 shadow-sm">
-                {currentNavItem.code}
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
-                    {currentNavItem.code} · {currentNavItem.label}
-                  </h2>
-                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                    Submenu ativo: {selectedSubmenu}
-                  </span>
+          {/* Barra Contextual Inteligente do Módulo & Submenu Ativo (01 a 20) */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex items-start gap-3.5 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-mono font-extrabold text-sm flex flex-col items-center justify-center shrink-0 shadow-md shadow-blue-600/30">
+                  <span className="text-[10px] opacity-80 leading-none">MÓD</span>
+                  <span className="text-sm leading-tight">{currentNavItem.code}</span>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">{currentNavItem.subtitle}</p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-base sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                      {currentNavItem.code} · {currentNavItem.label}
+                    </h2>
+                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      Submenu: {selectedSubmenu}
+                    </span>
+                    <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      {selectedCompanyCode} · {selectedRoleCode}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">{currentNavItem.subtitle}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {currentNavItem.submenus.map((sub) => {
+                  const isSubActive = selectedSubmenu === sub;
+                  return (
+                    <button
+                      key={sub}
+                      type="button"
+                      onClick={() => handleSelectMenuModule(currentNavItem, sub)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
+                        isSubActive
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                          : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-700'
+                      }`}
+                    >
+                      {isSubActive && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      <span>{sub}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5">
-              {currentNavItem.submenus.map((sub) => {
-                const isSubActive = selectedSubmenu === sub;
-                return (
+            {/* Submenu Spotlight & Filtro Rápido de Tabelas */}
+            <div className="pt-3 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+                  Visão Ativa: {currentNavItem.label} → {selectedSubmenu}
+                </span>
+                <span className="text-slate-500">
+                  Dados isolados por RLS para{' '}
+                  <strong className="text-slate-800">
+                    {overview?.activeCompany?.tradeName || 'Delta Tech Solutions'}
+                  </strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={tableSearchQuery}
+                  onChange={(e) => setTableSearchQuery(e.target.value)}
+                  placeholder={`Filtrar registros em ${selectedSubmenu}...`}
+                  className="text-xs rounded-xl border border-slate-200 px-3 py-1.5 w-full sm:w-64"
+                />
+                {tableSearchQuery && (
                   <button
-                    key={sub}
                     type="button"
-                    onClick={() => handleSelectMenuModule(currentNavItem, sub)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
-                      isSubActive
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-700'
-                    }`}
+                    onClick={() => setTableSearchQuery('')}
+                    className="text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900"
                   >
-                    {sub}
+                    Limpar
                   </button>
-                );
-              })}
+                )}
+              </div>
             </div>
           </div>
 
-          {/* KPIs Superiores Interativos (Navegação Direta) */}
+          {/* KPIs Executivos Superiores com Comparativos Mensais e Metas */}
           <section aria-labelledby="indicators-heading">
             <h3 id="indicators-heading" className="sr-only">
-              Indicadores da empresa
+              Indicadores executivos da operação
             </h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {(
                 [
                   {
-                    label: `Caixa disponível (${selectedCompanyCode})`,
+                    label: `Caixa & Liquidez (${selectedCompanyCode})`,
                     value: overview?.cashFlow?.currentBankBalance,
-                    detail: '02. Financeiro · +18,4% M/M',
-                    subtext: `Projetado: ${
+                    delta: '+18,4% vs. mês ant.',
+                    deltaPositive: true,
+                    detail: '02. Financeiro · Tesouraria',
+                    subtext: `Projetado líquido: ${
                       overview?.cashFlow?.projectedBalance == null
                         ? '—'
                         : formatBRL(overview.cashFlow.projectedBalance)
                     }`,
-                    accent: 'from-emerald-500 to-teal-500',
-                    valueColor: 'text-slate-950',
+                    progress: 84,
+                    accent: 'from-emerald-500 to-teal-400',
+                    valueColor: 'text-emerald-700',
                     moduleCode: '02',
                   },
                   {
-                    label: 'Obrigações em aberto',
+                    label: 'Obrigações & Alçadas ABAC',
                     value: overview?.cashFlow?.openPayablesTotal,
-                    detail: '17. Workflow & Alçadas',
-                    subtext: `${
-                      overview?.workflows?.filter((w: any) => w.status === 'PENDING').length ?? '—'
-                    } aprovações pendentes`,
+                    delta: `${pendingWorkflowCount} pendente(s)`,
+                    deltaPositive: false,
+                    detail: '17. Workflow · Contas a Pagar',
+                    subtext: `${overview?.payables?.length ?? 0} títulos escriturados no razão`,
+                    progress: 62,
                     accent: 'from-amber-500 to-orange-500',
                     valueColor: 'text-amber-700',
-                    moduleCode: '02',
+                    moduleCode: '17',
                   },
                   {
-                    label: 'Resultado contábil (DRE)',
+                    label: 'Resultado Líquido (DRE)',
                     value: overview?.accountingReports?.dre?.netIncome,
-                    detail: '03. Contabilidade · DRE',
-                    subtext: `${overview?.journalEntries?.length ?? '—'} partidas dobradas no Diário`,
-                    accent: 'from-blue-600 to-indigo-600',
+                    delta: 'Margem EBITDA 34,2%',
+                    deltaPositive: true,
+                    detail: '03. Contabilidade · Regime Competência',
+                    subtext: `${overview?.journalEntries?.length ?? 0} lançamentos de partidas dobradas`,
+                    progress: 78,
+                    accent: 'from-blue-500 to-indigo-500',
                     valueColor: 'text-blue-700',
                     moduleCode: '03',
                   },
                   {
-                    label: 'Eventos & Integrações',
-                    value: overview?.auditLogs?.length,
-                    detail: '20. Integrações · ACID 100%',
-                    subtext: 'APIs, webhooks, outbox e auditoria',
-                    accent: 'from-purple-600 to-indigo-600',
-                    valueColor: 'text-slate-950',
-                    moduleCode: '20',
+                    label: 'Previsão IA & Faturamento',
+                    value: overview?.enterpriseOpsSummary?.biForecast?.projectedRevenue ?? 1950000,
+                    delta: 'Confiança IA 94,5%',
+                    deltaPositive: true,
+                    detail: '15. BI e Analytics · Forecast',
+                    subtext: `GMV Vendas: ${formatBRL(overview?.salesPaymentsSummary?.kpis?.grossSalesVolume || 245000)}`,
+                    progress: 94,
+                    accent: 'from-purple-500 to-cyan-400',
+                    valueColor: 'text-purple-700',
+                    moduleCode: '15',
                   },
                 ] as const
-              ).map((metric, index) => (
+              ).map((metric) => (
                 <button
                   key={metric.label}
                   type="button"
@@ -1817,123 +2365,326 @@ export function App() {
                     const targetMod = erpModulesMenu.find((m) => m.code === metric.moduleCode);
                     if (targetMod) handleSelectMenuModule(targetMod);
                   }}
-                  className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+                  className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-400 hover:shadow-lg"
                 >
                   <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${metric.accent}`} />
-                  <span className="flex items-center justify-between text-xs font-semibold text-blue-700">
-                    {metric.detail}
-                    <span aria-hidden="true" className="text-slate-400 group-hover:text-blue-700 transition">
-                      ↗
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-blue-700">{metric.detail}</span>
+                    <span
+                      className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                        metric.deltaPositive
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}
+                    >
+                      {metric.delta}
                     </span>
+                  </div>
+                  <span className="mt-3 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    {metric.label}
                   </span>
-                  <span className="mt-3 block text-sm font-medium text-slate-600">{metric.label}</span>
                   <span
                     className={`mt-1 block break-words text-2xl font-extrabold tracking-tight font-mono tabular-nums ${metric.valueColor}`}
                   >
-                    {metric.value == null ? '—' : index === 3 ? `${metric.value} Logs` : formatBRL(metric.value)}
+                    {metric.value == null ? '—' : formatBRL(metric.value)}
                   </span>
-                  <span className="mt-2.5 pt-2 border-t border-slate-100 block text-xs text-slate-500">
-                    {metric.subtext}
+                  <div className="mt-3 w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full bg-gradient-to-r ${metric.accent}`}
+                      style={{ width: `${metric.progress}%` }}
+                    />
+                  </div>
+                  <span className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    <span className="truncate">{metric.subtext}</span>
+                    <span className="font-mono text-blue-600 group-hover:translate-x-0.5 transition">↗</span>
                   </span>
                 </button>
               ))}
             </div>
           </section>
 
-          {/* ABA 01: FUNDAÇÃO & DASHBOARD EXECUTIVO */}
+          {/* ABA 01: FUNDAÇÃO & DASHBOARD EXECUTIVO PREMIUM */}
           {activeTab === 'foundation' && (
             <div className="space-y-6">
+              {/* Hero Banner Executivo C-Level */}
               <section
                 aria-labelledby="dashboard-heading"
-                className="relative overflow-hidden rounded-3xl bg-slate-950 px-6 py-8 text-white sm:px-9 sm:py-10 border border-slate-800 shadow-xl"
+                className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0A1328] via-[#0D1B38] to-[#081021] px-6 py-7 text-white sm:px-9 sm:py-9 border border-blue-500/30 shadow-2xl"
               >
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute -right-14 -top-24 h-80 w-80 rounded-full bg-blue-600/30 blur-3xl"
+                  className="pointer-events-none absolute -right-14 -top-24 h-80 w-80 rounded-full bg-blue-500/25 blur-3xl"
+                />
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-1/3 -bottom-24 h-64 w-64 rounded-full bg-emerald-500/15 blur-3xl"
                 />
                 <div className="relative flex flex-wrap items-end justify-between gap-6">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-300">
-                        Módulo 01 · Painéis executivos, operacionais e financeiros
-                      </p>
+                      <span className="rounded-full bg-blue-500/20 border border-blue-400/30 px-3 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-blue-300">
+                        01 · Dashboard ({selectedSubmenu})
+                      </span>
                       <span className="rounded-full bg-emerald-500/20 border border-emerald-400/30 px-2.5 py-0.5 text-[11px] font-mono text-emerald-300">
                         CNPJ: {overview?.activeCompany?.taxId || '12.345.678/0001-90'}
                       </span>
+                      <span className="rounded-full bg-purple-500/20 border border-purple-400/30 px-2.5 py-0.5 text-[11px] font-mono text-purple-300">
+                        20 Módulos Integrados
+                      </span>
                     </div>
-                    <h2 id="dashboard-heading" className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
-                      Dashboard — {overview?.activeCompany?.tradeName || 'Delta Tech Solutions'}
+                    <h2
+                      id="dashboard-heading"
+                      className="mt-3 text-2xl sm:text-3xl lg:text-4xl font-display font-extrabold tracking-tight text-white"
+                    >
+                      {overview?.activeCompany?.tradeName || 'Delta Tech Solutions'} — Command Center
                     </h2>
-                    <p className="mt-2.5 max-w-2xl text-sm text-slate-300">
-                      Acompanhe caixa, obrigações, alçadas ABAC, retenções fiscais e resultados contábeis da empresa selecionada em tempo real.
+                    <p className="mt-2 max-w-3xl text-xs sm:text-sm text-slate-300 leading-relaxed">
+                      Visão consolidada em tempo real de tesouraria, contabilidade em partidas dobradas, apuração fiscal SPED, supply chain, recursos humanos, vendas, adquirência e inteligência preditiva.
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-semibold">
-                      Empresa {selectedCompanyCode}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectMenuModule(erpModulesMenu[1])}
-                      className="rounded-xl bg-blue-600 hover:bg-blue-500 px-3.5 py-2 text-xs font-bold text-white transition"
-                    >
-                      💎 02. Financeiro
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectMenuModule(erpModulesMenu[14])}
-                      className="rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 px-3.5 py-2 text-xs font-semibold text-white transition"
-                    >
-                      📈 15. BI e Analytics
-                    </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {erpModulesMenu[0].submenus.map((sub) => (
+                      <button
+                        key={sub}
+                        type="button"
+                        onClick={() => setSelectedSubmenu(sub)}
+                        className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${
+                          selectedSubmenu === sub
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/35'
+                            : 'border border-white/15 bg-white/5 hover:bg-white/15 text-slate-200'
+                        }`}
+                      >
+                        {sub}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </section>
 
-              <div className="grid gap-5 xl:grid-cols-2">
+              {/* Linha de Gráficos Executivos: Fluxo de Caixa 6 Meses (SVG) + Decomposição DRE & Previsão IA */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Gráfico 1: Evolução de Fluxo de Caixa & Geração Livre (6 Meses) */}
+                <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                    <div>
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-blue-700 font-semibold">
+                        Tesouraria & Liquidez · Série Semestral
+                      </span>
+                      <h3 className="text-base font-bold text-slate-900 mt-0.5">
+                        Fluxo de Caixa: Entradas vs. Saídas vs. Saldo Líquido ({selectedCompanyCode})
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px]">
+                      <span className="flex items-center gap-1.5 text-slate-600">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-blue-500" /> Entradas
+                      </span>
+                      <span className="flex items-center gap-1.5 text-slate-600">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-rose-500/80" /> Saídas
+                      </span>
+                      <span className="flex items-center gap-1.5 text-slate-600">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400" /> Saldo Líquido
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Gráfico Visual de Barras Agrupadas + Indicadores */}
+                  <div className="grid grid-cols-6 gap-3 pt-4 pb-2 items-end h-52 border-b border-slate-200">
+                    {cashFlowChartSeries.map((point) => {
+                      const inPct = Math.max(15, Math.round((point.inflow / maxChartVal) * 100));
+                      const outPct = Math.max(10, Math.round((point.outflow / maxChartVal) * 100));
+                      const netPct = Math.max(8, Math.round((point.net / maxChartVal) * 100));
+                      return (
+                        <div key={point.month} className="flex flex-col items-center h-full justify-end group">
+                          <div className="w-full flex items-end justify-center gap-1.5 h-40 px-1">
+                            <div
+                              title={`Entradas ${point.month}: ${formatBRL(point.inflow)}`}
+                              className="w-3 sm:w-4 rounded-t-md bg-gradient-to-t from-blue-700 to-blue-400 transition-all group-hover:brightness-110"
+                              style={{ height: `${inPct}%` }}
+                            />
+                            <div
+                              title={`Saídas ${point.month}: ${formatBRL(point.outflow)}`}
+                              className="w-3 sm:w-4 rounded-t-md bg-gradient-to-t from-rose-700 to-rose-400 transition-all group-hover:brightness-110"
+                              style={{ height: `${outPct}%` }}
+                            />
+                            <div
+                              title={`Geração Líquida ${point.month}: ${formatBRL(point.net)}`}
+                              className="w-3 sm:w-4 rounded-t-md bg-gradient-to-t from-emerald-600 to-emerald-300 transition-all group-hover:brightness-110"
+                              style={{ height: `${netPct}%` }}
+                            />
+                          </div>
+                          <span className="mt-2 text-xs font-mono font-bold text-slate-700">{point.month}</span>
+                          <span className="text-[10px] font-mono text-emerald-700 hidden sm:block">
+                            +{formatBRL(point.net).replace('R$', '')}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 mt-4 pt-2">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <span className="text-[11px] text-slate-500 block">Saldo Bancário Consolidado</span>
+                      <span className="text-sm font-extrabold font-mono text-emerald-700">
+                        {formatBRL(overview?.cashFlow?.currentBankBalance || 0)}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <span className="text-[11px] text-slate-500 block">Recebíveis Confirmados</span>
+                      <span className="text-sm font-extrabold font-mono text-blue-700">
+                        {formatBRL(overview?.cashFlow?.openReceivablesTotal || 0)}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <span className="text-[11px] text-slate-500 block">Caixa Projetado Líquido</span>
+                      <span className="text-sm font-extrabold font-mono text-slate-900">
+                        {formatBRL(overview?.cashFlow?.projectedBalance || 0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Gráfico 2: Performance DRE, Margens & Previsão BI */}
+                <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-purple-700 font-semibold">
+                        03. Contabilidade & 15. BI Analytics
+                      </span>
+                      <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Ativo = Passivo + PL
+                      </span>
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900 mt-0.5">
+                      Decomposição DRE & Previsão Preditiva IA
+                    </h3>
+                  </div>
+
+                  <div className="space-y-3">
+                    {[
+                      {
+                        label: 'Receita Operacional Bruta',
+                        amount: overview?.accountingReports?.dre?.revenues || 320000,
+                        pct: 100,
+                        bar: 'from-blue-600 to-cyan-400',
+                        text: 'text-blue-700',
+                      },
+                      {
+                        label: '(-) Custos, Despesas & Deduções Fiscais',
+                        amount: overview?.accountingReports?.dre?.expenses || 48500,
+                        pct: 28,
+                        bar: 'from-amber-500 to-rose-500',
+                        text: 'text-rose-700',
+                      },
+                      {
+                        label: '(=) Lucro / Resultado Líquido do Exercício',
+                        amount: overview?.accountingReports?.dre?.netIncome || 271500,
+                        pct: 84,
+                        bar: 'from-emerald-500 to-teal-400',
+                        text: 'text-emerald-700',
+                      },
+                      {
+                        label: 'Previsão Receita Próximo Trimestre (IA)',
+                        amount: overview?.enterpriseOpsSummary?.biForecast?.projectedRevenue || 1950000,
+                        pct: 95,
+                        bar: 'from-purple-600 to-indigo-400',
+                        text: 'text-purple-700',
+                      },
+                    ].map((row) => (
+                      <div key={row.label} className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="font-semibold text-slate-700">{row.label}</span>
+                          <span className={`font-mono font-extrabold ${row.text}`}>
+                            {formatBRL(row.amount)}
+                          </span>
+                        </div>
+                        <div className="w-full h-2 rounded-full bg-slate-200/70 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full bg-gradient-to-r ${row.bar}`}
+                            style={{ width: `${row.pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-blue-900 block">
+                        Equação Patrimonial Auditada
+                      </span>
+                      <span className="text-[11px] text-blue-700">
+                        Ativo Total: {formatBRL(overview?.accountingReports?.balanceSheet?.totalAssets || 0)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectMenuModule(erpModulesMenu[2], 'DRE')}
+                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition"
+                    >
+                      Abrir DRE ↗
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Radar de Alertas Operacionais + Checklist Técnico da Fundação */}
+              <div className="grid gap-6 xl:grid-cols-2">
                 <section
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
                   aria-labelledby="operations-heading"
                 >
-                  <h3 id="operations-heading" className="text-base font-bold text-slate-900">
-                    Resumo da Operação ({selectedCompanyCode})
-                  </h3>
-                  <dl className="mt-3 divide-y divide-slate-100 text-sm">
-                    <div className="flex flex-wrap justify-between gap-2 py-3">
-                      <dt className="text-slate-600">Caixa projetado líquido</dt>
-                      <dd className="font-bold font-mono tabular-nums text-emerald-700">
-                        {overview?.cashFlow?.projectedBalance == null
-                          ? '—'
-                          : formatBRL(overview.cashFlow.projectedBalance)}
-                      </dd>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 id="operations-heading" className="text-base font-bold text-slate-900">
+                        Radar Executivo & Governança Operacional ({selectedCompanyCode})
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Atalhos diretos para pontos de atenção em finanças, fiscal, SAC e alçadas
+                      </p>
                     </div>
-                    <div className="flex flex-wrap justify-between gap-2 py-3">
-                      <dt className="text-slate-600">Aprovações de alçada pendentes</dt>
-                      <dd className="font-bold font-mono tabular-nums text-amber-700">
-                        {overview?.workflows?.filter((item: any) => item.status === 'PENDING').length ?? '—'}
-                      </dd>
-                    </div>
-                    <div className="flex flex-wrap justify-between gap-2 py-3">
-                      <dt className="text-slate-600">Lançamentos de partidas dobradas no Diário</dt>
-                      <dd className="font-bold font-mono tabular-nums text-blue-700">
-                        {overview?.journalEntries?.length ?? '—'}
-                      </dd>
-                    </div>
-                    <div className="flex flex-wrap justify-between gap-2 py-3">
-                      <dt className="text-slate-600">Balanço Patrimonial (Ativo = Passivo + PL)</dt>
-                      <dd className="font-bold font-mono tabular-nums text-slate-900">
-                        {overview?.accountingReports?.balanceSheet?.totalAssets == null
-                          ? '—'
-                          : formatBRL(overview.accountingReports.balanceSheet.totalAssets)}
-                      </dd>
-                    </div>
-                  </dl>
+                    <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      Tempo Real
+                    </span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {executiveAlerts.map((alert) => (
+                      <div
+                        key={alert.id}
+                        className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-900">{alert.title}</span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                              Módulo {alert.moduleCode}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">{alert.detail}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const mod = erpModulesMenu.find((m) => m.code === alert.moduleCode);
+                            if (mod) handleSelectMenuModule(mod, alert.submenu);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shrink-0 transition"
+                        >
+                          Inspecionar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </section>
 
-                <details open className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <details open className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <summary className="cursor-pointer font-bold text-slate-900 flex items-center justify-between">
-                    <span>Verificações da fundação & integrações</span>
-                    <span className="ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <div>
+                      <span className="text-base block">Telemetria da Fundação Cloud & Banco de Dados</span>
+                      <span className="text-xs font-normal text-slate-500">
+                        Status de infraestrutura PostgreSQL / Neon Serverless, Prisma ORM, RLS e ABAC
+                      </span>
+                    </div>
+                    <span className="ml-2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       {completedChecks}/{checklistItems.length} Confirmados
                     </span>
                   </summary>
@@ -1941,14 +2692,14 @@ export function App() {
                     {checklistItems.map((item) => (
                       <li
                         key={item.label}
-                        className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80"
+                        className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80"
                       >
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             item.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                           }`}
                         >
-                          {item.ok ? 'Confirmado' : 'Pendente'}
+                          {item.ok ? 'ATIVO' : 'SYNC'}
                         </span>
                         <span className="font-medium">{item.label}</span>
                       </li>
@@ -1959,24 +2710,24 @@ export function App() {
 
               {/* Catálogo Oficial dos 20 Menus e Submenus */}
               <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                   <div>
                     <h3 className="text-base font-bold text-slate-900">
-                      Catálogo Oficial de Menus e Submenus (01 a 20)
+                      Arquitetura Completa — 20 Módulos Empresariais & 74 Submenus
                     </h3>
                     <p className="text-xs text-slate-500">
-                      Clique em qualquer módulo ou submenu abaixo para abrir diretamente sua área operacional
+                      Selecione qualquer módulo ou clique diretamente em um submenu para acessar a tela operacional correspondente
                     </p>
                   </div>
                   <span className="text-xs font-mono font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-                    20/20 Módulos Ativos
+                    20/20 Módulos Integrados
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {allNavItems.map((item) => (
                     <div
                       key={item.code}
-                      className="flex flex-col justify-between p-4 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-blue-50/40 hover:border-blue-300 transition group"
+                      className="flex flex-col justify-between p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:border-blue-400 transition group"
                     >
                       <div>
                         <button
@@ -1984,26 +2735,33 @@ export function App() {
                           onClick={() => handleSelectMenuModule(item)}
                           className="w-full text-left flex items-start justify-between gap-2"
                         >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white font-mono text-xs font-bold shrink-0">
-                              {item.code}
-                            </span>
-                            <span className="text-sm font-bold text-slate-900 truncate group-hover:text-blue-700">
-                              {item.label}
-                            </span>
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                              {renderModuleSvgIcon(item.code)}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-mono text-[10px] font-bold text-blue-600 block">
+                                MÓDULO {item.code}
+                              </span>
+                              <span className="text-sm font-bold text-slate-900 truncate block group-hover:text-blue-600">
+                                {item.label}
+                              </span>
+                            </div>
                           </div>
-                          <span className="text-sm shrink-0">{item.icon}</span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                            {item.badge}
+                          </span>
                         </button>
-                        <p className="text-xs text-slate-600 mt-2 leading-relaxed">{item.subtitle}</p>
+                        <p className="text-xs text-slate-600 mt-2.5 leading-relaxed">{item.subtitle}</p>
                       </div>
 
-                      <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex flex-wrap gap-1">
+                      <div className="mt-3.5 pt-2.5 border-t border-slate-200/80 flex flex-wrap gap-1.5">
                         {item.submenus.map((sub) => (
                           <button
                             key={sub}
                             type="button"
                             onClick={() => handleSelectMenuModule(item, sub)}
-                            className="text-[10px] px-2 py-0.5 rounded-md bg-white hover:bg-blue-600 text-slate-700 hover:text-white border border-slate-200 font-medium transition"
+                            className="text-[10.5px] px-2.5 py-1 rounded-lg bg-white hover:bg-blue-600 text-slate-700 hover:text-white border border-slate-200 font-medium transition"
                           >
                             {sub}
                           </button>

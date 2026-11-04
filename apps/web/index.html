@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,118 +7,389 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: ['class', '[data-theme="dark"]'],
         theme: {
           extend: {
             fontFamily: {
               sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+              display: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
               mono: ['JetBrains Mono', 'monospace'],
             },
             colors: {
               erp: {
-                canvas: '#F1F5F9',
-                surface: '#FFFFFF',
-                navy: '#0B1120',
-                blue: '#1D4ED8',
-                blueSoft: '#EFF6FF',
+                canvas: '#060B16',
+                surface: '#0D1526',
+                elevated: '#131F36',
+                navy: '#080D1A',
+                blue: '#3B82F6',
+                blueElectric: '#2563EB',
+                blueSoft: '#1E293B',
               },
             },
             boxShadow: {
-              xs: '0 1px 2px 0 rgba(15, 23, 42, 0.04), 0 1px 3px 0 rgba(15, 23, 42, 0.06)',
-              card: '0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 4px 12px -2px rgba(15, 23, 42, 0.06)',
-              elevated: '0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08)',
+              xs: '0 1px 2px 0 rgba(0, 0, 0, 0.25)',
+              card: '0 4px 20px -2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(148, 163, 184, 0.12)',
+              elevated: '0 14px 34px -6px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(59, 130, 246, 0.25)',
+              glow: '0 0 24px -4px rgba(59, 130, 246, 0.45)',
             },
           },
         },
       };
     </script>
     <style>
-      :root {
-        color-scheme: light;
+      /* ==========================================================================
+         DELTA ERP ENTERPRISE v1.4 — DESIGN SYSTEM PREMIUM DARK & HYBRID
+         ========================================================================== */
+      :root,
+      html[data-theme='dark'] {
+        color-scheme: dark;
+        --erp-bg-canvas: #060b16;
+        --erp-bg-surface: #0d1526;
+        --erp-bg-elevated: #121d33;
+        --erp-bg-subtle: #16233d;
+        --erp-bg-input: #09101e;
+        --erp-border-base: rgba(148, 163, 184, 0.14);
+        --erp-border-strong: rgba(148, 163, 184, 0.24);
+        --erp-border-accent: rgba(59, 130, 246, 0.45);
+        --erp-text-primary: #f8fafc;
+        --erp-text-secondary: #cbd5e1;
+        --erp-text-muted: #94a3b8;
+        --erp-accent-primary: #3b82f6;
+        --erp-accent-glow: rgba(59, 130, 246, 0.22);
       }
+
+      html[data-theme='light'] {
+        color-scheme: light;
+        --erp-bg-canvas: #f1f5f9;
+        --erp-bg-surface: #ffffff;
+        --erp-bg-elevated: #f8fafc;
+        --erp-bg-subtle: #f1f5f9;
+        --erp-bg-input: #ffffff;
+        --erp-border-base: rgba(203, 213, 225, 0.85);
+        --erp-border-strong: rgba(148, 163, 184, 0.65);
+        --erp-border-accent: rgba(37, 99, 235, 0.45);
+        --erp-text-primary: #0f172a;
+        --erp-text-secondary: #334155;
+        --erp-text-muted: #64748b;
+        --erp-accent-primary: #2563eb;
+        --erp-accent-glow: rgba(37, 99, 235, 0.14);
+      }
+
       body {
-        background-color: #F1F5F9;
-        background-image:
-          radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.05) 0px, transparent 45%),
-          radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.04) 0px, transparent 40%);
-        color: #0F172A;
+        background-color: var(--erp-bg-canvas);
+        color: var(--erp-text-primary);
         font-family: 'Inter', system-ui, -apple-system, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        transition: background-color 0.2s ease, color 0.2s ease;
       }
+
+      html[data-theme='dark'] body {
+        background-image:
+          radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.14) 0px, transparent 48%),
+          radial-gradient(at 100% 0%, rgba(14, 165, 233, 0.09) 0px, transparent 42%),
+          radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.06) 0px, transparent 50%);
+        background-attachment: fixed;
+      }
+
+      h1, h2, h3, .font-display {
+        font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+      }
+
       .tabular-nums {
         font-variant-numeric: tabular-nums;
       }
-      /* Refinamento global de cartões, tabelas e controles do ERP */
-      main .bg-white.rounded-xl {
-        box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 4px 14px -3px rgba(15, 23, 42, 0.05);
-        border-color: rgba(226, 232, 240, 0.9);
-        transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+
+      /* ==========================================================================
+         ADAPTADOR GLOBAL DE SUPERFÍCIES EM TEMA DARK PREMIUM
+         Garante que todos os 20 módulos, tabelas, cards e modais tenham
+         contraste corporativo refinado sem perda de legibilidade.
+         ========================================================================== */
+      html[data-theme='dark'] .erp-shell {
+        background-color: var(--erp-bg-canvas) !important;
+        color: var(--erp-text-primary) !important;
       }
-      main .bg-white.rounded-xl:hover {
-        border-color: rgba(203, 213, 225, 1);
-        box-shadow: 0 4px 18px -4px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+
+      /* Cards e painéis principais */
+      html[data-theme='dark'] main .bg-white,
+      html[data-theme='dark'] main .bg-white\/90,
+      html[data-theme='dark'] main .bg-white\/80 {
+        background-color: var(--erp-bg-surface) !important;
+        border-color: var(--erp-border-base) !important;
+        color: var(--erp-text-primary) !important;
+        box-shadow: 0 8px 24px -4px rgba(2, 6, 23, 0.55), 0 0 0 1px rgba(148, 163, 184, 0.1) !important;
       }
+
+      html[data-theme='dark'] main .bg-white:hover {
+        border-color: rgba(96, 165, 250, 0.32) !important;
+      }
+
+      /* Sub-superfícies em camadas */
+      html[data-theme='dark'] main .bg-slate-50,
+      html[data-theme='dark'] main .bg-slate-50\/80,
+      html[data-theme='dark'] main .bg-slate-50\/70,
+      html[data-theme='dark'] main .bg-slate-50\/60,
+      html[data-theme='dark'] main .bg-slate-50\/50 {
+        background-color: var(--erp-bg-elevated) !important;
+        border-color: var(--erp-border-base) !important;
+        color: var(--erp-text-secondary) !important;
+      }
+
+      html[data-theme='dark'] main .bg-slate-100,
+      html[data-theme='dark'] main .bg-slate-100\/80 {
+        background-color: var(--erp-bg-subtle) !important;
+        border-color: var(--erp-border-strong) !important;
+        color: var(--erp-text-primary) !important;
+      }
+
+      /* Bordas e divisores em camadas */
+      html[data-theme='dark'] main .border-slate-200,
+      html[data-theme='dark'] main .border-slate-200\/90,
+      html[data-theme='dark'] main .border-slate-200\/80,
+      html[data-theme='dark'] main .border-slate-100,
+      html[data-theme='dark'] main .border-slate-300 {
+        border-color: var(--erp-border-base) !important;
+      }
+
+      html[data-theme='dark'] main .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+      html[data-theme='dark'] main .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+        border-color: rgba(148, 163, 184, 0.12) !important;
+      }
+
+      /* Hierarquia tipográfica Dark Premium */
+      html[data-theme='dark'] main .text-slate-950,
+      html[data-theme='dark'] main .text-slate-900,
+      html[data-theme='dark'] main .text-slate-800 {
+        color: #f8fafc !important;
+      }
+
+      html[data-theme='dark'] main .text-slate-700,
+      html[data-theme='dark'] main .text-slate-600 {
+        color: #cbd5e1 !important;
+      }
+
+      html[data-theme='dark'] main .text-slate-500,
+      html[data-theme='dark'] main .text-slate-400 {
+        color: #94a3b8 !important;
+      }
+
+      /* Cores semânticas financeiras luminosas para fundo escuro */
+      html[data-theme='dark'] main .text-emerald-900,
+      html[data-theme='dark'] main .text-emerald-800,
+      html[data-theme='dark'] main .text-emerald-700,
+      html[data-theme='dark'] main .text-emerald-600 {
+        color: #34d399 !important;
+      }
+
+      html[data-theme='dark'] main .bg-emerald-50,
+      html[data-theme='dark'] main .bg-emerald-50\/70,
+      html[data-theme='dark'] main .bg-emerald-50\/60,
+      html[data-theme='dark'] main .bg-emerald-50\/50,
+      html[data-theme='dark'] main .bg-emerald-50\/40,
+      html[data-theme='dark'] main .bg-emerald-100 {
+        background-color: rgba(16, 185, 129, 0.14) !important;
+        border-color: rgba(52, 211, 153, 0.3) !important;
+        color: #6ee7b7 !important;
+      }
+
+      html[data-theme='dark'] main .text-amber-900,
+      html[data-theme='dark'] main .text-amber-800,
+      html[data-theme='dark'] main .text-amber-700,
+      html[data-theme='dark'] main .text-amber-600 {
+        color: #fbbf24 !important;
+      }
+
+      html[data-theme='dark'] main .bg-amber-50,
+      html[data-theme='dark'] main .bg-amber-50\/70,
+      html[data-theme='dark'] main .bg-amber-50\/60,
+      html[data-theme='dark'] main .bg-amber-100 {
+        background-color: rgba(245, 158, 11, 0.14) !important;
+        border-color: rgba(251, 191, 36, 0.3) !important;
+        color: #fcd34d !important;
+      }
+
+      html[data-theme='dark'] main .text-rose-900,
+      html[data-theme='dark'] main .text-rose-800,
+      html[data-theme='dark'] main .text-rose-700,
+      html[data-theme='dark'] main .text-rose-600 {
+        color: #fb7185 !important;
+      }
+
+      html[data-theme='dark'] main .bg-rose-50,
+      html[data-theme='dark'] main .bg-rose-50\/70,
+      html[data-theme='dark'] main .bg-rose-50\/50,
+      html[data-theme='dark'] main .bg-rose-100 {
+        background-color: rgba(244, 63, 94, 0.14) !important;
+        border-color: rgba(251, 113, 133, 0.32) !important;
+        color: #fda4af !important;
+      }
+
+      html[data-theme='dark'] main .text-blue-900,
+      html[data-theme='dark'] main .text-blue-800,
+      html[data-theme='dark'] main .text-blue-700,
+      html[data-theme='dark'] main .text-blue-600 {
+        color: #60a5fa !important;
+      }
+
+      html[data-theme='dark'] main .bg-blue-50,
+      html[data-theme='dark'] main .bg-blue-50\/80,
+      html[data-theme='dark'] main .bg-blue-50\/70,
+      html[data-theme='dark'] main .bg-blue-50\/50,
+      html[data-theme='dark'] main .bg-blue-50\/40,
+      html[data-theme='dark'] main .bg-blue-100 {
+        background-color: rgba(59, 130, 246, 0.15) !important;
+        border-color: rgba(96, 165, 250, 0.32) !important;
+        color: #93c5fd !important;
+      }
+
+      html[data-theme='dark'] main .text-indigo-900,
+      html[data-theme='dark'] main .text-indigo-800,
+      html[data-theme='dark'] main .text-indigo-700 {
+        color: #818cf8 !important;
+      }
+
+      html[data-theme='dark'] main .bg-indigo-50,
+      html[data-theme='dark'] main .bg-indigo-50\/60,
+      html[data-theme='dark'] main .bg-indigo-50\/40,
+      html[data-theme='dark'] main .bg-indigo-100 {
+        background-color: rgba(99, 102, 241, 0.15) !important;
+        border-color: rgba(129, 140, 248, 0.3) !important;
+        color: #a5b4fc !important;
+      }
+
+      html[data-theme='dark'] main .text-purple-900,
+      html[data-theme='dark'] main .text-purple-800,
+      html[data-theme='dark'] main .text-purple-700 {
+        color: #c084fc !important;
+      }
+
+      html[data-theme='dark'] main .bg-purple-50,
+      html[data-theme='dark'] main .bg-purple-50\/60,
+      html[data-theme='dark'] main .bg-purple-50\/40,
+      html[data-theme='dark'] main .bg-purple-100 {
+        background-color: rgba(168, 85, 247, 0.15) !important;
+        border-color: rgba(192, 132, 252, 0.3) !important;
+        color: #d8b4fe !important;
+      }
+
+      html[data-theme='dark'] main .text-cyan-900,
+      html[data-theme='dark'] main .text-cyan-800,
+      html[data-theme='dark'] main .text-cyan-700 {
+        color: #22d3ee !important;
+      }
+
+      html[data-theme='dark'] main .bg-cyan-50,
+      html[data-theme='dark'] main .bg-cyan-50\/60,
+      html[data-theme='dark'] main .bg-cyan-100 {
+        background-color: rgba(6, 182, 212, 0.15) !important;
+        border-color: rgba(34, 211, 238, 0.3) !important;
+        color: #67e8f9 !important;
+      }
+
+      html[data-theme='dark'] main .text-teal-800,
+      html[data-theme='dark'] main .text-teal-700 {
+        color: #2dd4bf !important;
+      }
+
+      html[data-theme='dark'] main .bg-teal-50,
+      html[data-theme='dark'] main .bg-teal-100 {
+        background-color: rgba(20, 184, 166, 0.15) !important;
+        border-color: rgba(45, 212, 191, 0.3) !important;
+        color: #5eead4 !important;
+      }
+
+      /* Formulários, Inputs e Selects padronizados */
       main input,
       main select,
       main textarea {
-        transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+        transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
       }
+
+      html[data-theme='dark'] main input,
+      html[data-theme='dark'] main select,
+      html[data-theme='dark'] main textarea {
+        background-color: var(--erp-bg-input) !important;
+        border-color: rgba(148, 163, 184, 0.24) !important;
+        color: #f8fafc !important;
+      }
+
+      html[data-theme='dark'] main input::placeholder,
+      html[data-theme='dark'] main textarea::placeholder {
+        color: #64748b !important;
+      }
+
       main input:focus,
       main select:focus,
       main textarea:focus {
-        outline: none;
-        border-color: #2563EB !important;
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+        outline: none !important;
+        border-color: var(--erp-accent-primary) !important;
+        box-shadow: 0 0 0 3px var(--erp-accent-glow) !important;
       }
+
+      /* Tabelas Corporativas de Alta Densidade */
+      main table {
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+
       main table thead tr {
-        background-color: #F8FAFC;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.05em;
         font-size: 10.5px;
       }
-      main table thead th {
-        padding-top: 0.65rem;
-        padding-bottom: 0.65rem;
-        padding-left: 0.5rem;
-        padding-right: 0.5rem;
-        font-weight: 600;
+
+      html[data-theme='dark'] main table thead tr {
+        background-color: #111c32 !important;
+        color: #94a3b8 !important;
       }
+
+      html[data-theme='light'] main table thead tr {
+        background-color: #f8fafc;
+        color: #475569;
+      }
+
+      main table thead th {
+        padding: 0.75rem 0.65rem;
+        font-weight: 700;
+        border-bottom: 1px solid var(--erp-border-base);
+      }
+
       main table tbody tr {
         transition: background-color 0.12s ease;
       }
-      main table tbody tr:hover {
-        background-color: rgba(241, 245, 249, 0.65);
+
+      html[data-theme='dark'] main table tbody tr:hover {
+        background-color: rgba(59, 130, 246, 0.08) !important;
       }
+
+      html[data-theme='light'] main table tbody tr:hover {
+        background-color: rgba(241, 245, 249, 0.75);
+      }
+
       main table tbody td {
-        padding-left: 0.5rem;
-        padding-right: 0.5rem;
+        padding: 0.7rem 0.65rem;
       }
-      main button {
-        transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      main button:active {
-        transform: scale(0.985);
-      }
-      /* Scrollbars elegantes */
+
+      /* Scrollbars minimalistas */
       ::-webkit-scrollbar {
         width: 7px;
         height: 7px;
       }
       ::-webkit-scrollbar-track {
-        background: transparent;
+        background: rgba(15, 23, 42, 0.35);
       }
       ::-webkit-scrollbar-thumb {
-        background: rgba(148, 163, 184, 0.45);
+        background: rgba(100, 116, 139, 0.45);
         border-radius: 9999px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: rgba(100, 116, 139, 0.7);
+        background: rgba(59, 130, 246, 0.65);
       }
     </style>
   </head>

@@ -53,6 +53,7 @@ type ActiveTab =
   | 'audit';
 
 export function App() {
+  const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('foundation');
   const [selectedCompanyCode, setSelectedCompanyCode] = useState<string>('EMP-01');
   const [selectedRoleCode, setSelectedRoleCode] = useState<string>('FINANCIAL_MANAGER');
@@ -1363,9 +1364,26 @@ export function App() {
   const normalizedSearch = moduleSearch.trim().toLowerCase();
 
   return (
-    <div className="min-h-screen flex bg-[#F1F5F9] text-slate-900">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-[#F1F5F9] text-slate-900">
+      {/* Botão Menu Mobile */}
+      <button
+        type="button"
+        aria-expanded={menuOpen}
+        aria-controls="erp-navigation"
+        className="lg:hidden bg-slate-950 px-5 py-4 text-left text-sm font-semibold text-white flex items-center justify-between border-b border-slate-800"
+        onClick={() => setMenuOpen((open) => !open)}
+      >
+        <span>Δ Delta ERP</span>
+        <span className="text-xs font-mono text-blue-300">{menuOpen ? 'Fechar menu' : 'Abrir menu'}</span>
+      </button>
+
       {/* Sidebar Executiva Obsidian Navy */}
-      <aside className="w-80 bg-[#0B1120] text-slate-300 border-r border-slate-800/80 flex flex-col justify-between shrink-0 select-none shadow-2xl">
+      <aside
+        id="erp-navigation"
+        className={`${
+          menuOpen ? 'flex' : 'hidden'
+        } w-full lg:w-80 lg:flex lg:sticky lg:top-0 lg:h-screen bg-[#0B1120] text-slate-300 border-r border-slate-800/80 flex-col justify-between shrink-0 select-none shadow-2xl`}
+      >
         <div>
           {/* Brand Header */}
           <div className="p-5 border-b border-slate-800/80 bg-gradient-to-b from-slate-900/90 to-[#0B1120]">
@@ -1409,7 +1427,15 @@ export function App() {
           </div>
 
           {/* Lista Categorizada de Módulos */}
-          <div className="px-3 py-3 space-y-4 max-h-[calc(100vh-230px)] overflow-y-auto">
+          <div
+            aria-label="Módulos do ERP"
+            className="px-3 py-3 space-y-4 max-h-[calc(100vh-230px)] overflow-y-auto"
+            onClick={(event) => {
+              if (event.target instanceof Element && event.target.closest('button')) {
+                setMenuOpen(false);
+              }
+            }}
+          >
             {navGroups.map((group) => {
               const visibleItems = group.items.filter(
                 (item) =>
@@ -1495,11 +1521,11 @@ export function App() {
       {/* Área Principal */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Topbar Contextual Glassmorphic */}
-        <header className="sticky top-0 z-20 h-16 bg-white/90 backdrop-blur-md border-b border-slate-200/90 px-8 flex items-center justify-between shadow-xs">
+        <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/90 px-4 py-3 sm:px-8 flex flex-wrap gap-3 items-center justify-between shadow-xs">
           <div className="flex items-center gap-3.5 min-w-0">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              {isLiveApiConnected ? 'PostgreSQL Online' : 'Cloud Snapshot Ativo'}
+              {isLiveApiConnected ? 'ERP Integrado v1.4 · Online' : 'ERP Integrado v1.4 · Cloud Snapshot'}
             </span>
             <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 truncate">
               <span className="text-slate-300">/</span>
@@ -1509,37 +1535,32 @@ export function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/90 text-xs">
-              <span className="text-slate-500">Liquidez ({selectedCompanyCode}):</span>
-              <strong className="font-mono font-bold text-slate-900">
-                {formatBRL(overview?.cashFlow?.currentBankBalance || 0)}
-              </strong>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <label className="hidden sm:inline text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                Alçada ABAC:
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <label htmlFor="erp-role" className="text-xs font-medium text-slate-500">
+                Perfil operacional
               </label>
               <select
+                id="erp-role"
                 value={selectedRoleCode}
                 onChange={(e) => setSelectedRoleCode(e.target.value)}
                 className="text-xs font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-800 focus:outline-none focus:border-blue-600 transition"
               >
-                <option value="FINANCIAL_MANAGER">FINANCIAL_MANAGER (R$ 50k)</option>
-                <option value="DIRECTOR">DIRECTOR / CFO (R$ 500k)</option>
-                <option value="SUPER_ADMIN">SUPER_ADMIN (Ilimitada)</option>
+                <option value="FINANCIAL_MANAGER">FINANCIAL_MANAGER (Alçada R$ 50k)</option>
+                <option value="DIRECTOR">DIRECTOR / CFO (Alçada R$ 500k)</option>
+                <option value="SUPER_ADMIN">SUPER_ADMIN (Alçada Ilimitada)</option>
               </select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <label className="hidden sm:inline text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                Unidade:
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <label htmlFor="erp-company" className="text-xs font-medium text-slate-500">
+                Empresa ativa
               </label>
               <select
+                id="erp-company"
                 value={selectedCompanyCode}
                 onChange={(e) => setSelectedCompanyCode(e.target.value)}
-                className="text-xs font-bold bg-blue-50/90 hover:bg-blue-100/70 border border-blue-200 rounded-xl px-3 py-1.5 text-blue-800 focus:outline-none focus:border-blue-600 transition"
+                className="max-w-full text-xs font-bold bg-blue-50/90 hover:bg-blue-100/70 border border-blue-200 rounded-xl px-3 py-1.5 text-blue-800 focus:outline-none focus:border-blue-600 transition"
               >
                 {overview?.companies?.map((comp: any) => (
                   <option key={comp.id} value={comp.code}>
@@ -1551,54 +1572,7 @@ export function App() {
           </div>
         </header>
 
-        <main className="p-8 space-y-6 max-w-7xl w-full mx-auto">
-          {/* Banner Executivo Command Center */}
-          <div className="rounded-2xl bg-gradient-to-r from-[#0B1120] via-[#1E293B] to-[#0F172A] text-white p-6 shadow-xl border border-slate-800/80 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30">
-                  20 MÓDULOS INTEGRADOS
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                  CNPJ ATIVO: {overview?.activeCompany?.taxId || '12.345.678/0001-90'}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-white/10 text-slate-300">
-                  SPED • eSocial • CPC 27 • ICP-Brasil A3
-                </span>
-              </div>
-              <h2 className="text-xl font-extrabold tracking-tight text-white">
-                {overview?.activeCompany?.legalName || 'Delta Tech Solutions & Cloud Computing S.A.'}
-              </h2>
-              <p className="text-xs text-slate-300 max-w-2xl">
-                Arquitetura Monólito Modular DDD com Partidas Dobradas Automáticas, Alçadas ABAC, Retenções Fiscais na Fonte (IRRF/PCC/ISS) e Custódia de Bilheteria.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setActiveTab('financial')}
-                className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-950/50 transition"
-              >
-                💎 Tesouraria & Títulos
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('fiscal')}
-                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 transition"
-              >
-                🧾 Emitir NF-e / NFS-e
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('enterprise_ops')}
-                className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-xs font-semibold border border-emerald-400/30 transition"
-              >
-                🌐 BI Executivo & ICP
-              </button>
-            </div>
-          </div>
-
+        <main className="w-full px-4 py-6 sm:px-8 sm:py-8 space-y-6 max-w-7xl mx-auto">
           {actionMessage && (
             <div
               className={`p-4 rounded-xl border text-sm font-medium flex items-center justify-between shadow-sm ${
@@ -1620,150 +1594,204 @@ export function App() {
             </div>
           )}
 
-          {/* KPIs Superiores de Alta Densidade */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-xl border border-slate-200 relative overflow-hidden">
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Caixa Disponível ({selectedCompanyCode})
-                </p>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  +18,4% M/M
-                </span>
-              </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-2 font-mono tabular-nums">
-                {formatBRL(overview?.cashFlow?.currentBankBalance || 0)}
-              </p>
-              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>Projetado Líquido:</span>
-                <strong className="font-mono text-emerald-700">
-                  {formatBRL(overview?.cashFlow?.projectedBalance || 0)}
-                </strong>
-              </div>
+          {/* KPIs Superiores Interativos (Navegação Direta) */}
+          <section aria-labelledby="indicators-heading">
+            <h3 id="indicators-heading" className="sr-only">
+              Indicadores da empresa
+            </h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {(
+                [
+                  {
+                    label: `Caixa disponível (${selectedCompanyCode})`,
+                    value: overview?.cashFlow?.currentBankBalance,
+                    detail: 'Financeiro · +18,4% M/M',
+                    subtext: `Projetado: ${
+                      overview?.cashFlow?.projectedBalance == null
+                        ? '—'
+                        : formatBRL(overview.cashFlow.projectedBalance)
+                    }`,
+                    accent: 'from-emerald-500 to-teal-500',
+                    valueColor: 'text-slate-950',
+                    tab: 'financial' as ActiveTab,
+                  },
+                  {
+                    label: 'Obrigações em aberto',
+                    value: overview?.cashFlow?.openPayablesTotal,
+                    detail: 'Financeiro & Alçadas',
+                    subtext: `${
+                      overview?.workflows?.filter((w: any) => w.status === 'PENDING').length ?? '—'
+                    } aprovações pendentes`,
+                    accent: 'from-amber-500 to-orange-500',
+                    valueColor: 'text-amber-700',
+                    tab: 'financial' as ActiveTab,
+                  },
+                  {
+                    label: 'Resultado contábil (DRE)',
+                    value: overview?.accountingReports?.dre?.netIncome,
+                    detail: 'Contabilidade · IFRS/CPC',
+                    subtext: `${overview?.journalEntries?.length ?? '—'} partidas dobradas no Diário`,
+                    accent: 'from-blue-600 to-indigo-600',
+                    valueColor: 'text-blue-700',
+                    tab: 'accounting' as ActiveTab,
+                  },
+                  {
+                    label: 'Registros de auditoria',
+                    value: overview?.auditLogs?.length,
+                    detail: 'Governança · ACID 100%',
+                    subtext: 'Assinaturas ICP-Brasil SHA-256',
+                    accent: 'from-purple-600 to-indigo-600',
+                    valueColor: 'text-slate-950',
+                    tab: 'audit' as ActiveTab,
+                  },
+                ] as const
+              ).map((metric, index) => (
+                <button
+                  key={metric.label}
+                  type="button"
+                  onClick={() => setActiveTab(metric.tab)}
+                  className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+                >
+                  <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${metric.accent}`} />
+                  <span className="flex items-center justify-between text-xs font-semibold text-blue-700">
+                    {metric.detail}
+                    <span aria-hidden="true" className="text-slate-400 group-hover:text-blue-700 transition">
+                      ↗
+                    </span>
+                  </span>
+                  <span className="mt-3 block text-sm font-medium text-slate-600">{metric.label}</span>
+                  <span
+                    className={`mt-1 block break-words text-2xl font-extrabold tracking-tight font-mono tabular-nums ${metric.valueColor}`}
+                  >
+                    {metric.value == null ? '—' : index === 3 ? `${metric.value} Logs` : formatBRL(metric.value)}
+                  </span>
+                  <span className="mt-2.5 pt-2 border-t border-slate-100 block text-xs text-slate-500">
+                    {metric.subtext}
+                  </span>
+                </button>
+              ))}
             </div>
+          </section>
 
-            <div className="bg-white p-5 rounded-xl border border-slate-200 relative overflow-hidden">
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Obrigações em Aberto
-                </p>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                  {overview?.workflows?.filter((w: any) => w.status === 'PENDING').length || 0} Pendentes
-                </span>
-              </div>
-              <p className="text-2xl font-extrabold text-amber-700 mt-2 font-mono tabular-nums">
-                {formatBRL(overview?.cashFlow?.openPayablesTotal || 0)}
-              </p>
-              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>Recebíveis Abertos:</span>
-                <strong className="font-mono text-slate-800">
-                  {formatBRL(overview?.cashFlow?.openReceivablesTotal || 0)}
-                </strong>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl border border-slate-200 relative overflow-hidden">
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 to-indigo-600" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Resultado Líquido (DRE)
-                </p>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  IFRS / CPC
-                </span>
-              </div>
-              <p className="text-2xl font-extrabold text-blue-700 mt-2 font-mono tabular-nums">
-                {formatBRL(overview?.accountingReports?.dre?.netIncome || 0)}
-              </p>
-              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>Livro Diário:</span>
-                <strong className="font-mono text-slate-800">
-                  {overview?.journalEntries?.length || 0} partidas dobradas
-                </strong>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl border border-slate-200 relative overflow-hidden">
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-purple-600 to-indigo-600" />
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Auditoria & Outbox
-                </p>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  ACID 100%
-                </span>
-              </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-2 font-mono tabular-nums">
-                {overview?.auditLogs?.length || 0} Eventos
-              </p>
-              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>Assinaturas ICP-Brasil:</span>
-                <strong className="font-mono text-emerald-700">SHA-256 Verificado</strong>
-              </div>
-            </div>
-          </div>
-
-          {/* ABA 01: FUNDAÇÃO & COMMAND CENTER */}
+          {/* ABA 01: FUNDAÇÃO & DASHBOARD EXECUTIVO */}
           {activeTab === 'foundation' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h2 className="text-base font-bold text-slate-900">
-                        Diagnóstico de Engenharia & Prontidão Operacional
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        Monitoramento contínuo da infraestrutura, banco de dados, segurança JWT/MFA e motores contábeis
+              <section
+                aria-labelledby="dashboard-heading"
+                className="relative overflow-hidden rounded-3xl bg-slate-950 px-6 py-8 text-white sm:px-9 sm:py-10 border border-slate-800 shadow-xl"
+              >
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -right-14 -top-24 h-80 w-80 rounded-full bg-blue-600/30 blur-3xl"
+                />
+                <div className="relative flex flex-wrap items-end justify-between gap-6">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-300">
+                        Módulo 01 · Gestão empresarial
                       </p>
+                      <span className="rounded-full bg-emerald-500/20 border border-emerald-400/30 px-2.5 py-0.5 text-[11px] font-mono text-emerald-300">
+                        CNPJ: {overview?.activeCompany?.taxId || '12.345.678/0001-90'}
+                      </span>
                     </div>
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      {completedChecks}/8 VERIFICADOS
+                    <h2 id="dashboard-heading" className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
+                      Dashboard — {overview?.activeCompany?.tradeName || 'Delta Tech Solutions'}
+                    </h2>
+                    <p className="mt-2.5 max-w-2xl text-sm text-slate-300">
+                      Acompanhe caixa, obrigações, alçadas ABAC, retenções fiscais e resultados contábeis da empresa selecionada em tempo real.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-semibold">
+                      Empresa {selectedCompanyCode}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('financial')}
+                      className="rounded-xl bg-blue-600 hover:bg-blue-500 px-3.5 py-2 text-xs font-bold text-white transition"
+                    >
+                      💎 Abrir Tesouraria
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('enterprise_ops')}
+                      className="rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 px-3.5 py-2 text-xs font-semibold text-white transition"
+                    >
+                      🌐 BI & Contratos
+                    </button>
                   </div>
+                </div>
+              </section>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {checklistItems.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-3 p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/80 hover:border-emerald-300 transition"
+              <div className="grid gap-5 xl:grid-cols-2">
+                <section
+                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+                  aria-labelledby="operations-heading"
+                >
+                  <h3 id="operations-heading" className="text-base font-bold text-slate-900">
+                    Resumo da Operação ({selectedCompanyCode})
+                  </h3>
+                  <dl className="mt-3 divide-y divide-slate-100 text-sm">
+                    <div className="flex flex-wrap justify-between gap-2 py-3">
+                      <dt className="text-slate-600">Caixa projetado líquido</dt>
+                      <dd className="font-bold font-mono tabular-nums text-emerald-700">
+                        {overview?.cashFlow?.projectedBalance == null
+                          ? '—'
+                          : formatBRL(overview.cashFlow.projectedBalance)}
+                      </dd>
+                    </div>
+                    <div className="flex flex-wrap justify-between gap-2 py-3">
+                      <dt className="text-slate-600">Aprovações de alçada pendentes</dt>
+                      <dd className="font-bold font-mono tabular-nums text-amber-700">
+                        {overview?.workflows?.filter((item: any) => item.status === 'PENDING').length ?? '—'}
+                      </dd>
+                    </div>
+                    <div className="flex flex-wrap justify-between gap-2 py-3">
+                      <dt className="text-slate-600">Lançamentos de partidas dobradas no Diário</dt>
+                      <dd className="font-bold font-mono tabular-nums text-blue-700">
+                        {overview?.journalEntries?.length ?? '—'}
+                      </dd>
+                    </div>
+                    <div className="flex flex-wrap justify-between gap-2 py-3">
+                      <dt className="text-slate-600">Balanço Patrimonial (Ativo = Passivo + PL)</dt>
+                      <dd className="font-bold font-mono tabular-nums text-slate-900">
+                        {overview?.accountingReports?.balanceSheet?.totalAssets == null
+                          ? '—'
+                          : formatBRL(overview.accountingReports.balanceSheet.totalAssets)}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <details open className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                  <summary className="cursor-pointer font-bold text-slate-900 flex items-center justify-between">
+                    <span>Verificações da fundação & integrações</span>
+                    <span className="ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      {completedChecks}/{checklistItems.length} Confirmados
+                    </span>
+                  </summary>
+                  <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-slate-700">
+                    {checklistItems.map((item) => (
+                      <li
+                        key={item.label}
+                        className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80"
                       >
-                        <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-emerald-600 text-white shrink-0 shadow-xs">
-                          ✓
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            item.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {item.ok ? 'Confirmado' : 'Pendente'}
                         </span>
-                        <span className="text-xs font-semibold text-slate-800">{item.label}</span>
-                      </div>
+                        <span className="font-medium">{item.label}</span>
+                      </li>
                     ))}
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
-                  <h2 className="text-base font-bold text-slate-900">Integrações Transacionais Ativas</h2>
-                  <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/80 text-xs">
-                    <strong className="text-blue-800">1. Financeiro → Workflow → Tesouraria → Diário:</strong>
-                    <p className="text-slate-600 mt-1 leading-relaxed">
-                      Títulos a pagar abrem alçada ABAC; a liquidação baixa o saldo bancário e gera partida dobrada automática na DRE/Balanço.
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80 text-xs">
-                    <strong className="text-emerald-800">2. Fiscal & Folha → Retenções → Contas a Pagar:</strong>
-                    <p className="text-slate-600 mt-1 leading-relaxed">
-                      Notas fiscais (IRRF/PCC/ISS) e Folha CLT (INSS/IRRF/FGTS eSocial) provisionam títulos líquidos e contabilizam encargos.
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-purple-50/60 border border-purple-200/80 text-xs">
-                    <strong className="text-purple-800">3. Eventos → Custódia → Borderô Produtor:</strong>
-                    <p className="text-slate-600 mt-1 leading-relaxed">
-                      Segregação contábil estrita entre Passivo de Custódia (Valor de Face) e Receita de Taxa de Conveniência.
-                    </p>
-                  </div>
-                </div>
+                  </ul>
+                </details>
               </div>
 
               {/* Matriz Executiva de Acesso Rápido aos Domínios */}
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-base font-bold text-slate-900">
@@ -1774,7 +1802,7 @@ export function App() {
                     </p>
                   </div>
                   <span className="text-xs font-mono font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-                    100% Funcional
+                    20/20 Ativos
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

@@ -1,0 +1,6 @@
+{
+  "name": "@delta-erp/portal-external",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DELTA ERP — Portal Externo (Produtores de Eventos, Clientes, Fornecedores e Parceiros)"
+}

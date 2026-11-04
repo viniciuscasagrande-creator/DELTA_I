@@ -1,0 +1,9 @@
+{
+  "name": "@delta-erp/api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json"
+  }
+}

@@ -1,0 +1,1393 @@
+// ============================================================================
+// DELTA ERP ENTERPRISE — PRISMA SCHEMA (04 — MODELAGEM EXECUTÁVEL)
+// ============================================================================
+// Banco de Dados: PostgreSQL 16+
+// Diretrizes:
+// 1. Isolamento Multiempresa (tenantId, companyId) em todas as tabelas operacionais
+// 2. Valores monetários sempre em Decimal(18, 2) e taxas em Decimal(10, 4)
+// 3. Imutabilidade de registros contabilizados/liquidados e Auditoria completa
+// 4. Transactional Outbox para integração assíncrona entre os 20 módulos
+// ============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS GLOBAIS DO CORE E DOMÍNIOS ESSENCIAIS
+// ============================================================================
+
+enum ModuleCode {
+  DASHBOARD
+  FINANCIAL
+  ACCOUNTING
+  FISCAL
+  HR
+  CRM
+  PURCHASING
+  INVENTORY
+  ASSETS
+  SALES
+  PAYMENTS
+  CONTRACTS
+  SAC
+  MARKETING
+  ANALYTICS
+  DOCUMENTS
+  WORKFLOW
+  EXTERNAL_PORTAL
+  ADMINISTRATION
+  INTEGRATIONS
+  EVENTS
+}
+
+enum UserType {
+  INTERNAL
+  EXTERNAL_CLIENT
+  EXTERNAL_SUPPLIER
+  EXTERNAL_PARTNER
+  EXTERNAL_PRODUCER
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING_MFA
+  SUSPENDED
+  INACTIVE
+}
+
+enum FinancialTitleStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+  REVERSED
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+  TRANSFER_IN
+  TRANSFER_OUT
+  FEE_DEDUCTION
+  REVERSAL
+}
+
+enum ReconciliationStatus {
+  PENDING
+  MATCHED_AUTOMATIC
+  MATCHED_MANUAL
+  DIVERGENT
+}
+
+enum AccountNature {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+enum WorkflowStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  FAILED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  ON_SALE
+  FINISHED
+  SETTLED
+  CANCELLED
+}
+
+enum FiscalDocumentModel {
+  NFE
+  NFCE
+  NFSE
+}
+
+enum FiscalDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum FiscalDocumentStatus {
+  VALIDATED
+  AUTHORIZED
+  CANCELLED
+}
+
+enum ContractType {
+  CLT
+  PJ
+  INTERN
+  STATUTORY_DIRECTOR
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_VACATION
+  ON_LEAVE
+  TERMINATED
+}
+
+enum PayrollStatus {
+  CALCULATED
+  APPROVED
+  PAID
+}
+
+enum OpportunityStage {
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum PurchaseOrderStatus {
+  QUOTATION
+  PENDING_APPROVAL
+  APPROVED
+  RECEIVED
+  CANCELLED
+}
+
+enum StockMovementType {
+  INBOUND_PURCHASE
+  OUTBOUND_REQUISITION
+  BRANCH_TRANSFER
+  INVENTORY_ADJUSTMENT
+}
+
+enum FixedAssetStatus {
+  IN_USE
+  IN_MAINTENANCE
+  FULLY_DEPRECIATED
+  DISPOSED
+}
+
+enum SalesOrderStatus {
+  CONFIRMED
+  INVOICED_DISPATCHED
+  CANCELLED
+}
+
+enum GatewayPaymentStatus {
+  AUTHORIZED
+  CAPTURED_SETTLED
+  CHARGEBACK_DISPUTE
+  REFUNDED
+}
+
+// ============================================================================
+// 1. CORE ERP — TENANTS, EMPRESAS, FILIAIS E CENTROS DE CUSTO
+// ============================================================================
+
+model Tenant {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(150)
+  slug        String   @unique @db.VarChar(80)
+  planTier    String   @default("ENTERPRISE") @db.VarChar(40)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companies           Company[]
+  users               User[]
+  roles               Role[]
+  moduleSubscriptions TenantModuleSubscription[]
+  auditLogs           AuditLog[]
+  outboxEvents        OutboxEvent[]
+
+  @@map("core_tenants")
+}
+
+model Company {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  code              String   @db.VarChar(20)
+  legalName         String   @db.VarChar(200)
+  tradeName         String   @db.VarChar(150)
+  taxId             String   @db.VarChar(20) // CNPJ
+  stateRegistration String?  @db.VarChar(30)
+  municipalReg      String?  @db.VarChar(30)
+  taxRegime         String   @default("LUCRO_REAL") @db.VarChar(40)
+  baseCurrency      String   @default("BRL") @db.VarChar(3)
+  isHeadquarters    Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branches            Branch[]
+  departments         Department[]
+  costCenters         CostCenter[]
+  userAccesses        UserCompanyAccess[]
+  bankAccounts        BankAccount[]
+  financialCategories FinancialCategory[]
+  accountsPayable     AccountPayable[]
+  accountsReceivable  AccountReceivable[]
+  transactions        FinancialTransaction[]
+  chartOfAccounts     ChartOfAccount[]
+  journalEntries      JournalEntry[]
+  taxRules            TaxRule[]
+  fiscalDocuments     FiscalDocument[]
+  employees           Employee[]
+  payrollRuns         PayrollRun[]
+  customers           Customer[]
+  salesOpportunities  SalesOpportunity[]
+  suppliers           Supplier[]
+  purchaseOrders      PurchaseOrder[]
+  inventoryItems      InventoryItem[]
+  stockMovements      StockMovement[]
+  fixedAssets         FixedAsset[]
+  depreciationRuns    AssetDepreciationRun[]
+  salesOrders         SalesOrder[]
+  gatewayTransactions PaymentGatewayTransaction[]
+  corporateContracts  CorporateContract[]
+  supportTickets      SupportTicket[]
+  marketingCampaigns  MarketingCampaign[]
+  digitalDocuments    DigitalDocument[]
+  producers           Producer[]
+  events              Event[]
+
+  @@unique([tenantId, taxId])
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("core_companies")
+}
+
+model Branch {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  companyId String   @db.Uuid
+  code      String   @db.VarChar(20)
+  name      String   @db.VarChar(150)
+  taxId     String?  @db.VarChar(20)
+  city      String?  @db.VarChar(100)
+  state     String?  @db.VarChar(2)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId])
+  @@map("core_branches")
+}
+
+model Department {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  companyId String   @db.Uuid
+  code      String   @db.VarChar(20)
+  name      String   @db.VarChar(120)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId])
+  @@map("core_departments")
+}
+
+model CostCenter {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  companyId String   @db.Uuid
+  code      String   @db.VarChar(30)
+  name      String   @db.VarChar(150)
+  parentId  String?  @db.Uuid
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  parent             CostCenter?         @relation("CostCenterHierarchy", fields: [parentId], references: [id])
+  children           CostCenter[]        @relation("CostCenterHierarchy")
+  accountsPayable    AccountPayable[]
+  accountsReceivable AccountReceivable[]
+  journalLines       JournalEntryLine[]
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId])
+  @@map("core_cost_centers")
+}
+
+// ============================================================================
+// 2. CORE ERP — IDENTIDADE, RBAC, ABAC E FEATURE MANAGEMENT
+// ============================================================================
+
+model User {
+  id                 String     @id @default(uuid()) @db.Uuid
+  tenantId           String     @db.Uuid
+  email              String     @db.VarChar(180)
+  passwordHash       String     @db.VarChar(255)
+  fullName           String     @db.VarChar(150)
+  userType           UserType   @default(INTERNAL)
+  status             UserStatus @default(ACTIVE)
+  mfaEnabled         Boolean    @default(false)
+  mfaSecretEncrypted String?    @db.VarChar(255)
+  externalEntityId   String?    @db.Uuid // Vínculo com Producer, Supplier ou Customer no Portal Externo
+  lastLoginAt        DateTime?
+  lgpdConsentAt      DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  companyAccesses UserCompanyAccess[]
+  auditLogs       AuditLog[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, userType])
+  @@map("core_users")
+}
+
+model Role {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  code              String   @db.VarChar(60)
+  name              String   @db.VarChar(120)
+  description       String?  @db.VarChar(255)
+  isSystemRole      Boolean  @default(false)
+  maxApprovalAmount Decimal  @default(0) @db.Decimal(18, 2) // Regra ABAC de alçada financeira
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  permissions     RolePermission[]
+  companyAccesses UserCompanyAccess[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("core_roles")
+}
+
+model Permission {
+  id          String     @id @default(uuid()) @db.Uuid
+  moduleCode  ModuleCode
+  code        String     @unique @db.VarChar(100) // Ex: financial:payable:approve
+  name        String     @db.VarChar(150)
+  description String?    @db.VarChar(255)
+  createdAt   DateTime   @default(now())
+
+  rolePermissions RolePermission[]
+
+  @@index([moduleCode])
+  @@map("core_permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid()) @db.Uuid
+  roleId       String   @db.Uuid
+  permissionId String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("core_role_permissions")
+}
+
+model UserCompanyAccess {
+  id                   String   @id @default(uuid()) @db.Uuid
+  tenantId             String   @db.Uuid
+  userId               String   @db.Uuid
+  companyId            String   @db.Uuid
+  roleId               String   @db.Uuid
+  allowedCostCenterIds String[] // Escopo ABAC opcional por centros de custo
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, companyId, roleId])
+  @@index([tenantId, companyId])
+  @@map("core_user_company_access")
+}
+
+model TenantModuleSubscription {
+  id          String     @id @default(uuid()) @db.Uuid
+  tenantId    String     @db.Uuid
+  companyId   String?    @db.Uuid // Se null, ativo para todas as empresas do tenant
+  moduleCode  ModuleCode
+  isEnabled   Boolean    @default(true)
+  activatedAt DateTime   @default(now())
+  configJson  Json?      // Parâmetros específicos do módulo
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, companyId, moduleCode])
+  @@index([tenantId, isEnabled])
+  @@map("core_tenant_module_subscriptions")
+}
+
+// ============================================================================
+// 3. CORE ERP — AUDITORIA IMUTÁVEL, WORKFLOW E TRANSACTIONAL OUTBOX
+// ============================================================================
+
+model AuditLog {
+  id             String     @id @default(uuid()) @db.Uuid
+  tenantId       String     @db.Uuid
+  companyId      String?    @db.Uuid
+  userId         String?    @db.Uuid
+  moduleCode     ModuleCode
+  entityName     String     @db.VarChar(100)
+  entityId       String     @db.VarChar(100)
+  action         String     @db.VarChar(60) // CREATE, UPDATE, APPROVE, SETTLE, REVERSE
+  previousValues Json?
+  newValues      Json?
+  ipAddress      String?    @db.VarChar(45)
+  userAgent      String?    @db.VarChar(255)
+  requestId      String?    @db.VarChar(100)
+  occurredAt     DateTime   @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, companyId, moduleCode, occurredAt])
+  @@index([tenantId, entityName, entityId])
+  @@map("core_audit_logs")
+}
+
+model WorkflowInstance {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenantId         String         @db.Uuid
+  companyId        String         @db.Uuid
+  moduleCode       ModuleCode
+  entityType       String         @db.VarChar(80) // Ex: ACCOUNT_PAYABLE, PURCHASE_ORDER, PRODUCER_PAYOUT
+  entityId         String         @db.Uuid
+  referenceAmount  Decimal        @db.Decimal(18, 2)
+  status           WorkflowStatus @default(PENDING)
+  requestedById    String         @db.Uuid
+  decidedById      String?        @db.Uuid
+  decisionNotes    String?        @db.VarChar(500)
+  decidedAt        DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([tenantId, companyId, status])
+  @@index([entityType, entityId])
+  @@map("core_workflow_instances")
+}
+
+model OutboxEvent {
+  id            String       @id @default(uuid()) @db.Uuid
+  tenantId      String       @db.Uuid
+  companyId     String?      @db.Uuid
+  aggregateType String       @db.VarChar(100)
+  aggregateId   String       @db.VarChar(100)
+  eventType     String       @db.VarChar(120) // Ex: financial.payable.settled
+  payload       Json
+  status        OutboxStatus @default(PENDING)
+  retryCount    Int          @default(0)
+  errorMessage  String?      @db.Text
+  occurredAt    DateTime     @default(now())
+  processedAt   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([status, occurredAt])
+  @@index([tenantId, eventType])
+  @@map("core_outbox_events")
+}
+
+// ============================================================================
+// 4. MÓDULO 02: FINANCEIRO E TESOURARIA
+// ============================================================================
+
+model BankAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  companyId      String   @db.Uuid
+  code           String   @db.VarChar(30)
+  name           String   @db.VarChar(120)
+  bankCode       String   @db.VarChar(10) // Ex: 001, 341, 260
+  agencyNumber   String   @db.VarChar(20)
+  accountNumber  String   @db.VarChar(30)
+  pixKey         String?  @db.VarChar(120)
+  initialBalance Decimal  @default(0) @db.Decimal(18, 2)
+  currentBalance Decimal  @default(0) @db.Decimal(18, 2)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company      Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  transactions FinancialTransaction[]
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId])
+  @@map("fin_bank_accounts")
+}
+
+model FinancialCategory {
+  id               String        @id @default(uuid()) @db.Uuid
+  tenantId         String        @db.Uuid
+  companyId        String        @db.Uuid
+  code             String        @db.VarChar(30)
+  name             String        @db.VarChar(150)
+  nature           AccountNature // REVENUE ou EXPENSE
+  chartOfAccountId String?       @db.Uuid // Integração automática com Contabilidade
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  accountsPayable    AccountPayable[]
+  accountsReceivable AccountReceivable[]
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId])
+  @@map("fin_categories")
+}
+
+model AccountPayable {
+  id                String               @id @default(uuid()) @db.Uuid
+  tenantId          String               @db.Uuid
+  companyId         String               @db.Uuid
+  branchId          String?              @db.Uuid
+  categoryId        String               @db.Uuid
+  costCenterId      String?              @db.Uuid
+  supplierName      String               @db.VarChar(180)
+  supplierTaxId     String               @db.VarChar(20)
+  documentNumber    String               @db.VarChar(60)
+  description       String               @db.VarChar(255)
+  originModule      ModuleCode           @default(FINANCIAL)
+  originReferenceId String?              @db.Uuid // Ex: purchaseOrderId, eventSettlementId
+  issueDate         DateTime             @db.Date
+  dueDate           DateTime             @db.Date
+  competenceDate    DateTime             @db.Date
+  grossAmount       Decimal              @db.Decimal(18, 2)
+  discountAmount    Decimal              @default(0) @db.Decimal(18, 2)
+  interestAmount    Decimal              @default(0) @db.Decimal(18, 2)
+  taxRetainedAmount Decimal              @default(0) @db.Decimal(18, 2)
+  netAmount         Decimal              @db.Decimal(18, 2)
+  paidAmount        Decimal              @default(0) @db.Decimal(18, 2)
+  status            FinancialTitleStatus @default(PENDING_APPROVAL)
+  approvedById      String?              @db.Uuid
+  approvedAt        DateTime?
+  idempotencyKey    String               @db.VarChar(100)
+  createdById       String               @db.Uuid
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  company      Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  category     FinancialCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  costCenter   CostCenter?            @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
+  transactions FinancialTransaction[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, companyId, status, dueDate])
+  @@index([tenantId, companyId, supplierTaxId])
+  @@map("fin_accounts_payable")
+}
+
+model AccountReceivable {
+  id                String               @id @default(uuid()) @db.Uuid
+  tenantId          String               @db.Uuid
+  companyId         String               @db.Uuid
+  branchId          String?              @db.Uuid
+  categoryId        String               @db.Uuid
+  costCenterId      String?              @db.Uuid
+  customerName      String               @db.VarChar(180)
+  customerTaxId     String               @db.VarChar(20)
+  documentNumber    String               @db.VarChar(60)
+  description       String               @db.VarChar(255)
+  originModule      ModuleCode           @default(FINANCIAL)
+  originReferenceId String?              @db.Uuid // Ex: salesOrderId, ticketOrderId
+  issueDate         DateTime             @db.Date
+  dueDate           DateTime             @db.Date
+  competenceDate    DateTime             @db.Date
+  grossAmount       Decimal              @db.Decimal(18, 2)
+  acquirerFeeAmount Decimal              @default(0) @db.Decimal(18, 2)
+  discountAmount    Decimal              @default(0) @db.Decimal(18, 2)
+  netAmount         Decimal              @db.Decimal(18, 2)
+  receivedAmount    Decimal              @default(0) @db.Decimal(18, 2)
+  status            FinancialTitleStatus @default(APPROVED)
+  idempotencyKey    String               @db.VarChar(100)
+  createdById       String               @db.Uuid
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  company      Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  category     FinancialCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  costCenter   CostCenter?            @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
+  transactions FinancialTransaction[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, companyId, status, dueDate])
+  @@map("fin_accounts_receivable")
+}
+
+model FinancialTransaction {
+  id                   String               @id @default(uuid()) @db.Uuid
+  tenantId             String               @db.Uuid
+  companyId            String               @db.Uuid
+  bankAccountId        String               @db.Uuid
+  payableId            String?              @db.Uuid
+  receivableId         String?              @db.Uuid
+  type                 TransactionType
+  amount               Decimal              @db.Decimal(18, 2)
+  occurredAt           DateTime             @default(now())
+  paymentMethod        String               @db.VarChar(40) // PIX, TED, BOLETO, CREDIT_CARD
+  externalBankRef      String?              @db.VarChar(120) // EndToEndId PIX / NSU / Autenticação
+  reconciliationStatus ReconciliationStatus @default(PENDING)
+  reconciledAt         DateTime?
+  notes                String?              @db.VarChar(255)
+  idempotencyKey       String               @db.VarChar(100)
+  createdById          String               @db.Uuid
+  createdAt            DateTime             @default(now())
+
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  bankAccount BankAccount        @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  payable     AccountPayable?    @relation(fields: [payableId], references: [id], onDelete: Restrict)
+  receivable  AccountReceivable? @relation(fields: [receivableId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, companyId, bankAccountId, occurredAt])
+  @@map("fin_transactions")
+}
+
+// ============================================================================
+// 5. MÓDULO 03: CONTABILIDADE (PLANO DE CONTAS E PARTIDAS DOBRADAS)
+// ============================================================================
+
+model ChartOfAccount {
+  id           String        @id @default(uuid()) @db.Uuid
+  tenantId     String        @db.Uuid
+  companyId    String        @db.Uuid
+  code         String        @db.VarChar(40) // Ex: 1.01.01.001
+  name         String        @db.VarChar(150)
+  nature       AccountNature
+  isAnalytical Boolean       @default(true) // Somente contas analíticas recebem lançamentos
+  parentId     String?       @db.Uuid
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  parent       ChartOfAccount?    @relation("ChartAccountHierarchy", fields: [parentId], references: [id])
+  children     ChartOfAccount[]   @relation("ChartAccountHierarchy")
+  journalLines JournalEntryLine[]
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId])
+  @@map("acc_chart_of_accounts")
+}
+
+model JournalEntry {
+  id                String             @id @default(uuid()) @db.Uuid
+  tenantId          String             @db.Uuid
+  companyId         String             @db.Uuid
+  entryNumber       Int
+  competenceDate    DateTime           @db.Date
+  postingDate       DateTime           @default(now())
+  description       String             @db.VarChar(255)
+  originModule      ModuleCode
+  originReferenceId String?            @db.Uuid
+  totalDebit        Decimal            @db.Decimal(18, 2)
+  totalCredit       Decimal            @db.Decimal(18, 2)
+  status            JournalEntryStatus @default(POSTED)
+  reversedEntryId   String?            @db.Uuid
+  idempotencyKey    String             @db.VarChar(100)
+  createdById       String             @db.Uuid
+  createdAt         DateTime           @default(now())
+
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  lines   JournalEntryLine[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([companyId, entryNumber])
+  @@index([tenantId, companyId, competenceDate])
+  @@map("acc_journal_entries")
+}
+
+model JournalEntryLine {
+  id               String   @id @default(uuid()) @db.Uuid
+  journalEntryId   String   @db.Uuid
+  chartOfAccountId String   @db.Uuid
+  costCenterId     String?  @db.Uuid
+  debitAmount      Decimal  @default(0) @db.Decimal(18, 2)
+  creditAmount     Decimal  @default(0) @db.Decimal(18, 2)
+  memo             String?  @db.VarChar(255)
+
+  journalEntry   JournalEntry   @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  chartOfAccount ChartOfAccount @relation(fields: [chartOfAccountId], references: [id], onDelete: Restrict)
+  costCenter     CostCenter?    @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
+
+  @@index([journalEntryId])
+  @@index([chartOfAccountId])
+  @@map("acc_journal_entry_lines")
+}
+
+// ============================================================================
+// 6. EXTENSÃO ESPECIALIZADA: EVENTOS, BILHETERIA E PORTAL DO PRODUTOR
+// ============================================================================
+
+model Producer {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  companyId        String   @db.Uuid
+  legalName        String   @db.VarChar(200)
+  tradeName        String   @db.VarChar(150)
+  taxId            String   @db.VarChar(20) // CPF ou CNPJ do Produtor
+  pixKeyForPayout  String   @db.VarChar(120)
+  defaultFeePct    Decimal  @default(10.0000) @db.Decimal(10, 4) // Taxa padrão de conveniência/serviço (%)
+  advanceFeePct    Decimal  @default(2.5000) @db.Decimal(10, 4)  // Taxa de antecipação de recebíveis (%)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  events      Event[]
+  settlements ProducerSettlement[]
+
+  @@unique([companyId, taxId])
+  @@index([tenantId, companyId])
+  @@map("evt_producers")
+}
+
+model Event {
+  id                 String      @id @default(uuid()) @db.Uuid
+  tenantId           String      @db.Uuid
+  companyId          String      @db.Uuid
+  producerId         String      @db.Uuid
+  code               String      @db.VarChar(40)
+  title              String      @db.VarChar(180)
+  venueName          String      @db.VarChar(150)
+  city               String      @db.VarChar(100)
+  state              String      @db.VarChar(2)
+  startsAt           DateTime
+  endsAt             DateTime
+  serviceFeePct      Decimal     @db.Decimal(10, 4)
+  status             EventStatus @default(DRAFT)
+  grossTicketSales   Decimal     @default(0) @db.Decimal(18, 2)
+  totalServiceFees   Decimal     @default(0) @db.Decimal(18, 2)
+  totalAcquirerFees  Decimal     @default(0) @db.Decimal(18, 2)
+  totalChargebacks   Decimal     @default(0) @db.Decimal(18, 2)
+  totalAdvanced      Decimal     @default(0) @db.Decimal(18, 2)
+  totalPaidOut       Decimal     @default(0) @db.Decimal(18, 2)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  company       Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  producer      Producer             @relation(fields: [producerId], references: [id], onDelete: Restrict)
+  ticketBatches TicketBatch[]
+  settlements   ProducerSettlement[]
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId, producerId, status])
+  @@map("evt_events")
+}
+
+model TicketBatch {
+  id           String   @id @default(uuid()) @db.Uuid
+  eventId      String   @db.Uuid
+  name         String   @db.VarChar(120) // Ex: 1º Lote Pista Premium
+  faceValue    Decimal  @db.Decimal(18, 2)
+  serviceFee   Decimal  @db.Decimal(18, 2)
+  totalQuota   Int
+  soldQuantity Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("evt_ticket_batches")
+}
+
+model ProducerSettlement {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenantId         String         @db.Uuid
+  companyId        String         @db.Uuid
+  eventId          String         @db.Uuid
+  producerId       String         @db.Uuid
+  isAdvancePayout  Boolean        @default(false) // true = Antecipação de recebíveis
+  requestedAmount  Decimal        @db.Decimal(18, 2)
+  advanceFeeAmount Decimal        @default(0) @db.Decimal(18, 2)
+  netPayoutAmount  Decimal        @db.Decimal(18, 2)
+  status           WorkflowStatus @default(PENDING)
+  payableId        String?        @db.Uuid // Vínculo com o Contas a Pagar gerado após aprovação
+  requestedById    String         @db.Uuid
+  approvedById     String?        @db.Uuid
+  requestedAt      DateTime       @default(now())
+  settledAt        DateTime?
+
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  producer Producer @relation(fields: [producerId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, companyId, eventId, status])
+  @@map("evt_producer_settlements")
+}
+
+// ============================================================================
+// 7. MÓDULO 04: FISCAL E TRIBUTÁRIO (NF-e, NFC-e, NFS-e, RETENÇÕES E SPED)
+// ============================================================================
+
+model TaxRule {
+  id            String              @id @default(uuid()) @db.Uuid
+  tenantId      String              @db.Uuid
+  companyId     String              @db.Uuid
+  code          String              @db.VarChar(30) // Ex: SERV-TI-101, VENDA-MERC-5102
+  name          String              @db.VarChar(150)
+  documentModel FiscalDocumentModel @default(NFSE)
+  direction     FiscalDirection     @default(INBOUND)
+  cfopOrLc116   String              @db.VarChar(20) // Ex: 1.01, 17.06, 5102
+  issPct        Decimal             @default(0) @db.Decimal(10, 4)
+  pisPct        Decimal             @default(0) @db.Decimal(10, 4)
+  cofinsPct     Decimal             @default(0) @db.Decimal(10, 4)
+  irrfPct       Decimal             @default(0) @db.Decimal(10, 4)
+  csllPct       Decimal             @default(0) @db.Decimal(10, 4)
+  icmsPct       Decimal             @default(0) @db.Decimal(10, 4)
+  withholdTaxes Boolean             @default(true) // Indica se retém IRRF/CSRF na fonte
+  isActive      Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  fiscalDocuments FiscalDocument[]
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId])
+  @@map("fis_tax_rules")
+}
+
+model FiscalDocument {
+  id                    String               @id @default(uuid()) @db.Uuid
+  tenantId              String               @db.Uuid
+  companyId             String               @db.Uuid
+  taxRuleId             String               @db.Uuid
+  model                 FiscalDocumentModel
+  direction             FiscalDirection
+  status                FiscalDocumentStatus @default(AUTHORIZED)
+  documentNumber        String               @db.VarChar(40)
+  series                String               @default("1") @db.VarChar(10)
+  accessKey             String               @db.VarChar(60) // Chave 44 dígitos NF-e ou Código Verificação NFS-e
+  counterpartyName      String               @db.VarChar(180)
+  counterpartyTaxId     String               @db.VarChar(20)
+  issueDate             DateTime             @db.Date
+  competenceDate        DateTime             @db.Date
+  grossAmount           Decimal              @db.Decimal(18, 2)
+  issAmount             Decimal              @default(0) @db.Decimal(18, 2)
+  pisAmount             Decimal              @default(0) @db.Decimal(18, 2)
+  cofinsAmount          Decimal              @default(0) @db.Decimal(18, 2)
+  icmsAmount            Decimal              @default(0) @db.Decimal(18, 2)
+  irrfRetained          Decimal              @default(0) @db.Decimal(18, 2)
+  pccRetained           Decimal              @default(0) @db.Decimal(18, 2) // PIS + COFINS + CSLL (4,65%)
+  issRetained           Decimal              @default(0) @db.Decimal(18, 2)
+  totalRetainedAmount   Decimal              @default(0) @db.Decimal(18, 2)
+  netInvoiceAmount      Decimal              @db.Decimal(18, 2)
+  linkedPayableId       String?              @db.Uuid
+  linkedReceivableId    String?              @db.Uuid
+  linkedJournalEntryId  String?              @db.Uuid
+  idempotencyKey        String               @db.VarChar(100)
+  createdById           String               @db.Uuid
+  createdAt             DateTime             @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  taxRule TaxRule @relation(fields: [taxRuleId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, companyId, direction, competenceDate])
+  @@map("fis_documents")
+}
+
+// ============================================================================
+// 8. MÓDULO 05: RECURSOS HUMANOS (COLABORADORES, FOLHA, BENEFÍCIOS E eSOCIAL)
+// ============================================================================
+
+model Employee {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenantId         String         @db.Uuid
+  companyId        String         @db.Uuid
+  departmentId     String?        @db.Uuid
+  costCenterId     String?        @db.Uuid
+  registrationCode String         @db.VarChar(30) // Matrícula (ex: COL-0001)
+  fullName         String         @db.VarChar(160)
+  taxId            String         @db.VarChar(20) // CPF
+  email            String         @db.VarChar(160)
+  jobTitle         String         @db.VarChar(120)
+  contractType     ContractType   @default(CLT)
+  status           EmployeeStatus @default(ACTIVE)
+  hireDate         DateTime       @db.Date
+  baseSalary       Decimal        @db.Decimal(18, 2)
+  benefitsAmount   Decimal        @default(0) @db.Decimal(18, 2) // VR + VT + Plano de Saúde
+  dependentsCount  Int            @default(0)
+  esocialMatricula String         @db.VarChar(40) // Código S-2200 eSocial
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  payrollRuns PayrollRun[]
+
+  @@unique([companyId, registrationCode])
+  @@unique([companyId, taxId])
+  @@index([tenantId, companyId, status])
+  @@map("hr_employees")
+}
+
+model PayrollRun {
+  id                   String        @id @default(uuid()) @db.Uuid
+  tenantId             String        @db.Uuid
+  companyId            String        @db.Uuid
+  employeeId           String        @db.Uuid
+  competenceMonth      String        @db.VarChar(7) // Formato YYYY-MM (ex: 2026-11)
+  grossSalary          Decimal       @db.Decimal(18, 2)
+  overtimeAmount       Decimal       @default(0) @db.Decimal(18, 2)
+  benefitsAmount       Decimal       @default(0) @db.Decimal(18, 2)
+  inssEmployeeDiscount Decimal       @default(0) @db.Decimal(18, 2)
+  irrfEmployeeDiscount Decimal       @default(0) @db.Decimal(18, 2)
+  fgtsEmployerAmount   Decimal       @default(0) @db.Decimal(18, 2) // 8% FGTS
+  inssEmployerAmount   Decimal       @default(0) @db.Decimal(18, 2) // 20% Patronal
+  netSalary            Decimal       @db.Decimal(18, 2)
+  totalCompanyCost     Decimal       @db.Decimal(18, 2)
+  esocialEventCode     String        @default("S-1200") @db.VarChar(20)
+  status               PayrollStatus @default(CALCULATED)
+  linkedPayableId      String?       @db.Uuid
+  linkedJournalEntryId String?       @db.Uuid
+  createdAt            DateTime      @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, employeeId, competenceMonth])
+  @@index([tenantId, companyId, competenceMonth])
+  @@map("hr_payroll_runs")
+}
+
+// ============================================================================
+// 9. MÓDULO 06: COMERCIAL E CRM (CLIENTES, FUNIL, PROPOSTAS E COMISSÕES)
+// ============================================================================
+
+model Customer {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  companyId   String   @db.Uuid
+  code        String   @db.VarChar(30) // Ex: CLI-0001
+  legalName   String   @db.VarChar(200)
+  tradeName   String   @db.VarChar(150)
+  taxId       String   @db.VarChar(20) // CNPJ / CPF
+  email       String   @db.VarChar(160)
+  segment     String   @default("ENTERPRISE") @db.VarChar(60)
+  creditLimit Decimal  @default(100000) @db.Decimal(18, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company       Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  opportunities SalesOpportunity[]
+  salesOrders   SalesOrder[]
+
+  @@unique([companyId, code])
+  @@unique([companyId, taxId])
+  @@index([tenantId, companyId, isActive])
+  @@map("crm_customers")
+}
+
+model SalesOpportunity {
+  id                   String           @id @default(uuid()) @db.Uuid
+  tenantId             String           @db.Uuid
+  companyId            String           @db.Uuid
+  customerId           String           @db.Uuid
+  code                 String           @db.VarChar(30) // Ex: OPP-2026-001
+  title                String           @db.VarChar(200)
+  salespersonName      String           @db.VarChar(140)
+  stage                OpportunityStage @default(PROPOSAL)
+  probabilityPct       Int              @default(60)
+  grossAmount          Decimal          @db.Decimal(18, 2)
+  discountAmount       Decimal          @default(0) @db.Decimal(18, 2)
+  netAmount            Decimal          @db.Decimal(18, 2)
+  commissionRatePct    Decimal          @default(5.0000) @db.Decimal(10, 4)
+  commissionAmount     Decimal          @default(0) @db.Decimal(18, 2)
+  expectedCloseDate    DateTime         @db.Date
+  closedAt             DateTime?
+  linkedReceivableId   String?          @db.Uuid
+  linkedPayableId      String?          @db.Uuid
+  linkedJournalEntryId String?          @db.Uuid
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId, stage])
+  @@map("crm_opportunities")
+}
+
+// ============================================================================
+// 10. MÓDULO 07: COMPRAS E SUPRIMENTOS (FORNECEDORES, COTAÇÕES E PEDIDOS PO)
+// ============================================================================
+
+model Supplier {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  companyId       String   @db.Uuid
+  code            String   @db.VarChar(30) // Ex: FOR-0001
+  legalName       String   @db.VarChar(200)
+  tradeName       String   @db.VarChar(150)
+  taxId           String   @db.VarChar(20) // CNPJ
+  email           String   @db.VarChar(160)
+  category        String   @default("CLOUD_TECHNOLOGY") @db.VarChar(60)
+  ratingScore     Decimal  @default(9.50) @db.Decimal(5, 2) // Nota de homologação ISO/SLA (0 a 10)
+  isHomologated   Boolean  @default(true)
+  paymentTermsDays Int     @default(30)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([companyId, code])
+  @@unique([companyId, taxId])
+  @@index([tenantId, companyId, isHomologated])
+  @@map("pur_suppliers")
+}
+
+model PurchaseOrder {
+  id                   String              @id @default(uuid()) @db.Uuid
+  tenantId             String              @db.Uuid
+  companyId            String              @db.Uuid
+  supplierId           String              @db.Uuid
+  costCenterId         String?             @db.Uuid
+  code                 String              @db.VarChar(30) // Ex: PO-2026-0001
+  description          String              @db.VarChar(255)
+  requesterName        String              @db.VarChar(140)
+  quote1Amount         Decimal             @db.Decimal(18, 2) // Cotação Vencedora
+  quote2Amount         Decimal             @default(0) @db.Decimal(18, 2) // Cotação Concorrente 2
+  quote3Amount         Decimal             @default(0) @db.Decimal(18, 2) // Cotação Concorrente 3
+  negotiatedSavings    Decimal             @default(0) @db.Decimal(18, 2) // Economia apurada (Saving)
+  freightAmount        Decimal             @default(0) @db.Decimal(18, 2)
+  totalAmount          Decimal             @db.Decimal(18, 2)
+  status               PurchaseOrderStatus @default(PENDING_APPROVAL)
+  expectedDeliveryDate DateTime            @db.Date
+  receivedAt           DateTime?
+  linkedWorkflowId     String?             @db.Uuid
+  linkedPayableId      String?             @db.Uuid
+  linkedJournalEntryId String?             @db.Uuid
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId, status])
+  @@map("pur_orders")
+}
+
+// ============================================================================
+// 11. MÓDULO 08: ESTOQUE, CUSTO MÉDIO PONDERADO E INVENTÁRIO (INVENTORY)
+// ============================================================================
+
+model InventoryItem {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  companyId         String   @db.Uuid
+  sku               String   @db.VarChar(40) // Ex: MAT-SRV-001
+  name              String   @db.VarChar(180)
+  category          String   @default("IT_EQUIPMENT") @db.VarChar(60)
+  unit              String   @default("UN") @db.VarChar(10)
+  warehouseLocation String   @default("ALM-CENTRAL-SP") @db.VarChar(80)
+  quantityOnHand    Decimal  @default(0) @db.Decimal(18, 2)
+  reorderPoint      Decimal  @default(5) @db.Decimal(18, 2) // Estoque mínimo de segurança
+  averageUnitCost   Decimal  @default(0) @db.Decimal(18, 2) // Custo Médio Ponderado Móvel (CMPM)
+  totalStockValue   Decimal  @default(0) @db.Decimal(18, 2) // Valor contábil total em estoque
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  movements StockMovement[]
+
+  @@unique([companyId, sku])
+  @@index([tenantId, companyId, isActive])
+  @@map("inv_items")
+}
+
+model StockMovement {
+  id                   String            @id @default(uuid()) @db.Uuid
+  tenantId             String            @db.Uuid
+  companyId            String            @db.Uuid
+  itemId               String            @db.Uuid
+  movementType         StockMovementType
+  quantity             Decimal           @db.Decimal(18, 2)
+  unitCost             Decimal           @db.Decimal(18, 2)
+  totalMovementValue   Decimal           @db.Decimal(18, 2)
+  resultingQtyOnHand   Decimal           @db.Decimal(18, 2)
+  resultingAvgCost     Decimal           @db.Decimal(18, 2)
+  referenceDocument    String            @db.VarChar(80) // Ex: NF-10450, REQ-CC-200
+  notes                String?           @db.VarChar(255)
+  linkedJournalEntryId String?           @db.Uuid
+  occurredAt           DateTime          @default(now())
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  item    InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, companyId, itemId, occurredAt])
+  @@map("inv_movements")
+}
+
+// ============================================================================
+// 12. MÓDULO 09: PATRIMÔNIO, DEPRECIAÇÃO LINEAR CPC 27 E MANUTENÇÃO (ASSETS)
+// ============================================================================
+
+model FixedAsset {
+  id                       String           @id @default(uuid()) @db.Uuid
+  tenantId                 String           @db.Uuid
+  companyId                String           @db.Uuid
+  assetTag                 String           @db.VarChar(40) // Plaquetamento (ex: PAT-2026-0001)
+  name                     String           @db.VarChar(180)
+  category                 String           @default("IT_INFRASTRUCTURE") @db.VarChar(60)
+  locationName             String           @default("Datacenter Matriz SP") @db.VarChar(120)
+  acquisitionDate          DateTime         @db.Date
+  acquisitionValue         Decimal          @db.Decimal(18, 2)
+  residualValue            Decimal          @default(0) @db.Decimal(18, 2) // Valor residual ao fim da vida útil
+  usefulLifeMonths         Int              @default(60) // Ex: 60 meses (20% a.a.)
+  annualDepreciationRatePct Decimal         @default(20.0000) @db.Decimal(10, 4)
+  accumulatedDepreciation  Decimal          @default(0) @db.Decimal(18, 2)
+  netBookValue             Decimal          @db.Decimal(18, 2) // Valor Contábil Líquido
+  status                   FixedAssetStatus @default(IN_USE)
+  lastMaintenanceNotes     String?          @db.VarChar(255)
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+
+  company          Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  depreciationRuns AssetDepreciationRun[]
+
+  @@unique([companyId, assetTag])
+  @@index([tenantId, companyId, status])
+  @@map("ast_fixed_assets")
+}
+
+model AssetDepreciationRun {
+  id                      String   @id @default(uuid()) @db.Uuid
+  tenantId                String   @db.Uuid
+  companyId               String   @db.Uuid
+  assetId                 String   @db.Uuid
+  competenceMonth         String   @db.VarChar(7) // Ex: 2026-11
+  depreciationQuotaAmount Decimal  @db.Decimal(18, 2)
+  accumulatedAfterRun     Decimal  @db.Decimal(18, 2)
+  netBookValueAfterRun    Decimal  @db.Decimal(18, 2)
+  linkedJournalEntryId    String?  @db.Uuid
+  createdAt               DateTime @default(now())
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  asset   FixedAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, assetId, competenceMonth])
+  @@index([tenantId, companyId, competenceMonth])
+  @@map("ast_depreciation_runs")
+}
+
+// ============================================================================
+// 13. MÓDULO 10: VENDAS, EXPEDIÇÃO DE ESTOQUE E FATURAMENTO (SALES)
+// ============================================================================
+
+model SalesOrder {
+  id                   String           @id @default(uuid()) @db.Uuid
+  tenantId             String           @db.Uuid
+  companyId            String           @db.Uuid
+  customerId           String           @db.Uuid
+  inventoryItemId      String?          @db.Uuid
+  orderNumber          String           @db.VarChar(30) // Ex: PV-2026-0001
+  salespersonName      String           @db.VarChar(140)
+  quantity             Decimal          @default(1) @db.Decimal(18, 2)
+  unitPrice            Decimal          @db.Decimal(18, 2)
+  grossAmount          Decimal          @db.Decimal(18, 2)
+  discountAmount       Decimal          @default(0) @db.Decimal(18, 2)
+  netAmount            Decimal          @db.Decimal(18, 2)
+  cmvAmount            Decimal          @default(0) @db.Decimal(18, 2) // Custo da Mercadoria Vendida (Estoque)
+  commissionAmount     Decimal          @default(0) @db.Decimal(18, 2)
+  status               SalesOrderStatus @default(CONFIRMED)
+  linkedReceivableId   String?          @db.Uuid
+  linkedStockMoveId    String?          @db.Uuid
+  linkedJournalEntryId String?          @db.Uuid
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, orderNumber])
+  @@index([tenantId, companyId, status])
+  @@map("sls_orders")
+}
+
+// ============================================================================
+// 14. MÓDULO 11: PAGAMENTOS, GATEWAYS PIX/CARTÃO, MDR E CHARGEBACKS (PAYMENTS)
+// ============================================================================
+
+model PaymentGatewayTransaction {
+  id                   String               @id @default(uuid()) @db.Uuid
+  tenantId             String               @db.Uuid
+  companyId            String               @db.Uuid
+  receivableId         String?              @db.Uuid
+  gatewayProvider      String               @default("STRIPE_PAGARME_PIX") @db.VarChar(60)
+  externalNsuCode      String               @db.VarChar(80) // EndToEndId PIX ou NSU Adquirente
+  paymentMethod        String               @db.VarChar(30) // PIX_INSTANT, CREDIT_CARD_1X, CREDIT_CARD_INSTALLMENTS
+  installments         Int                  @default(1)
+  grossAmount          Decimal              @db.Decimal(18, 2)
+  mdrRatePct           Decimal              @db.Decimal(10, 4) // Ex: 0.89% PIX, 2.99% Cartão
+  mdrFeeAmount         Decimal              @db.Decimal(18, 2)
+  netSettledAmount     Decimal              @db.Decimal(18, 2)
+  status               GatewayPaymentStatus @default(CAPTURED_SETTLED)
+  chargebackReason     String?              @db.VarChar(200)
+  linkedBankTxId       String?              @db.Uuid
+  linkedJournalEntryId String?              @db.Uuid
+  occurredAt           DateTime             @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, externalNsuCode])
+  @@index([tenantId, companyId, status, occurredAt])
+  @@map("pay_gateway_transactions")
+}
+
+// ============================================================================
+// 15. MÓDULO 12: CONTRATOS, VIGÊNCIAS E REAJUSTES IGPM/IPCA (CONTRACTS)
+// ============================================================================
+
+model CorporateContract {
+  id                  String   @id @default(uuid()) @db.Uuid
+  tenantId            String   @db.Uuid
+  companyId           String   @db.Uuid
+  contractNumber      String   @db.VarChar(40) // Ex: CTR-2026-0001
+  title               String   @db.VarChar(180)
+  counterpartyName    String   @db.VarChar(180)
+  counterpartyTaxId   String   @db.VarChar(20)
+  contractNature      String   @default("REVENUE_SAAS") @db.VarChar(30) // REVENUE_SAAS ou EXPENSE_SLA
+  readjustmentIndex   String   @default("IGPM") @db.VarChar(20) // IGPM, IPCA, FIXED_PCT
+  originalMonthlyVal  Decimal  @db.Decimal(18, 2)
+  currentMonthlyVal   Decimal  @db.Decimal(18, 2)
+  accumulatedReadjPct Decimal  @default(0) @db.Decimal(10, 4)
+  startDate           DateTime @db.Date
+  endDate             DateTime @db.Date
+  status              String   @default("ACTIVE") @db.VarChar(30) // ACTIVE, READJUSTED, EXPIRED
+  lastReadjustedAt    DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, contractNumber])
+  @@index([tenantId, companyId, status])
+  @@map("ctr_contracts")
+}
+
+// ============================================================================
+// 16. MÓDULO 13: SAC, CHAMADOS, ATENDIMENTO, SLA E ESTORNOS/REEMBOLSOS (SAC)
+// ============================================================================
+
+model SupportTicket {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  companyId         String   @db.Uuid
+  protocolNumber    String   @db.VarChar(40) // Ex: SAC-2026-9001
+  customerName      String   @db.VarChar(180)
+  customerTaxId     String   @db.VarChar(20)
+  subject           String   @db.VarChar(200)
+  priority          String   @default("HIGH") @db.VarChar(20) // LOW, MEDIUM, HIGH, CRITICAL
+  slaTargetHours    Int      @default(4)
+  elapsedHours      Decimal  @default(1.5) @db.Decimal(10, 2)
+  refundRequested   Decimal  @default(0) @db.Decimal(18, 2)
+  refundApproved    Decimal  @default(0) @db.Decimal(18, 2)
+  status            String   @default("OPEN_IN_SLA") @db.VarChar(30) // OPEN_IN_SLA, REFUNDED_CLOSED, RESOLVED
+  linkedPayableId   String?  @db.Uuid
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, protocolNumber])
+  @@index([tenantId, companyId, status])
+  @@map("sac_support_tickets")
+}
+
+// ============================================================================
+// 17. MÓDULO 14: MARKETING, CAMPANHAS, CUPONS, CONVERSÕES E ROAS/ROI (MARKETING)
+// ============================================================================
+
+model MarketingCampaign {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  companyId         String   @db.Uuid
+  code              String   @db.VarChar(40) // Ex: MKT-2026-BF01
+  name              String   @db.VarChar(180)
+  channel           String   @default("GOOGLE_META_ADS") @db.VarChar(50)
+  couponCode        String   @db.VarChar(40) // Ex: DELTA15OFF
+  discountPct       Decimal  @default(10) @db.Decimal(10, 2)
+  budgetSpent       Decimal  @db.Decimal(18, 2)
+  conversionsCount  Int      @default(0)
+  attributedRevenue Decimal  @default(0) @db.Decimal(18, 2)
+  roasMultiplier    Decimal  @default(0) @db.Decimal(10, 2) // Receita / Investimento
+  status            String   @default("ACTIVE") @db.VarChar(30)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId, status])
+  @@map("mkt_campaigns")
+}
+
+// ============================================================================
+// 18. MÓDULO 16: DOCUMENTOS, ASSINATURAS ELETRÔNICAS E CERTIFICADOS ICP-BRASIL (DOCUMENTS)
+// ============================================================================
+
+model DigitalDocument {
+  id                  String   @id @default(uuid()) @db.Uuid
+  tenantId            String   @db.Uuid
+  companyId           String   @db.Uuid
+  documentCode        String   @db.VarChar(40) // Ex: DOC-ICP-2026-001
+  title               String   @db.VarChar(200)
+  category            String   @default("CONTRACT_ADDENDUM") @db.VarChar(50)
+  sha256Hash          String   @db.VarChar(128)
+  signerName          String   @db.VarChar(160)
+  signerTaxId         String   @db.VarChar(20)
+  certificateType     String   @default("ICP_BRASIL_A3") @db.VarChar(40)
+  signatureStatus     String   @default("SIGNED_VERIFIED") @db.VarChar(30)
+  signedAt            DateTime @default(now())
+  createdAt           DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, documentCode])
+  @@index([tenantId, companyId, signatureStatus])
+  @@map("doc_digital_documents")
+}

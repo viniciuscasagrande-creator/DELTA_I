@@ -1,0 +1,46 @@
+{
+  "name": "enterprise-erp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ENTERPRISE ERP (DELTA ERP) — Fundação Técnica v1.0 (Monólito Modular + DDD)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node ./scripts/dev-runner.mjs",
+    "dev:api": "npm --workspace=@delta-erp/api run dev",
+    "dev:web": "npm --workspace=@delta-erp/web run dev",
+    "dev:portal": "npm --workspace=@delta-erp/portal-external run dev",
+    "dev:external": "npm --workspace=@delta-erp/portal-external run dev",
+    "typecheck": "tsc -p apps/api/tsconfig.json --noEmit",
+    "build": "npm run build --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate --schema=./prisma/schema.prisma",
+    "db:migrate": "tsx ./scripts/db-migrate.ts && tsx ./prisma/seeds/seed.ts",
+    "db:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
+    "db:seed": "tsx ./prisma/seeds/seed.ts",
+    "db:studio": "prisma studio --schema=./prisma/schema.prisma",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/ws": "^8.18.2",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "@prisma/adapter-neon": "^5.22.0",
+    "@prisma/client": "^5.22.0",
+    "dotenv": "^16.4.5",
+    "ws": "^8.22.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

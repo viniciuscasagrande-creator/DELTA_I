@@ -11,5 +11,6 @@ test-results/
 *.zip
 .DS_Store
 Thumbs.db
+apps/web/apps/
 
 .github/

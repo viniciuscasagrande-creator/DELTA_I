@@ -341,9 +341,9 @@ async function readJsonBody(req: http.IncomingMessage): Promise<any> {
   });
 }
 
-async function buildExecutionContext(
+export async function buildExecutionContext(
   req: http.IncomingMessage,
-  companyCode = 'EMP-01',
+  companyCode?: string,
   roleCode = 'SUPER_ADMIN'
 ): Promise<TenantExecutionContext> {
   const bearerToken = extractBearerToken(req);
@@ -352,6 +352,8 @@ async function buildExecutionContext(
 
   if (bearerToken) {
     const claims = identityService.verifyJwt(bearerToken);
+    await identityService.assertSessionNotRevoked(claims.sessionId, claims.tenantId);
+
     const dbUser = await prisma.user.findUnique({
       where: { id: claims.sub },
       include: {
@@ -373,10 +375,29 @@ async function buildExecutionContext(
       throw new Error('FORBIDDEN_USER_INACTIVE: Usuário do token JWT não está ativo.');
     }
 
-    const activeAccess =
-      dbUser.companyAccesses.find((a) => a.company.code === companyCode) ||
-      dbUser.companyAccesses.find((a) => a.companyId === claims.companyId) ||
-      dbUser.companyAccesses[0];
+    if (dbUser.tenantId !== claims.tenantId) {
+      throw new Error(
+        'FORBIDDEN_CROSS_COMPANY_ACCESS: Token JWT não pertence à organização do usuário.'
+      );
+    }
+
+    // Se o cliente solicitou explicitamente um companyCode, exige vínculo ativo com essa empresa.
+    // Nunca faz fallback silencioso para outra empresa quando o vínculo solicitado não é autorizado.
+    let activeAccess = undefined;
+    if (companyCode) {
+      activeAccess = dbUser.companyAccesses.find(
+        (a) => a.company.code === companyCode && a.company.tenantId === claims.tenantId
+      );
+      if (!activeAccess) {
+        throw new Error(
+          `FORBIDDEN_CROSS_COMPANY_ACCESS: Usuário (${dbUser.email}) não possui vínculo autorizado com a empresa solicitada (${companyCode}).`
+        );
+      }
+    } else {
+      activeAccess =
+        dbUser.companyAccesses.find((a) => a.companyId === claims.companyId) ||
+        dbUser.companyAccesses[0];
+    }
 
     if (!activeAccess) {
       throw new Error('FORBIDDEN_NO_COMPANY_ACCESS: Usuário não possui acesso à empresa.');
@@ -424,9 +445,10 @@ async function buildExecutionContext(
     );
   }
 
+  const effectiveCompanyCode = companyCode || 'EMP-01';
   const tenant = await prisma.tenant.findFirst();
   const company = await prisma.company.findFirst({
-    where: { tenantId: tenant?.id, code: companyCode },
+    where: { tenantId: tenant?.id, code: effectiveCompanyCode },
   });
   const user = await prisma.user.findFirst({ where: { tenantId: tenant?.id } });
   const role = await prisma.role.findFirst({
@@ -457,6 +479,9 @@ async function buildExecutionContext(
       'accounting:journal:post',
       'workflow:approval:decide',
       'events:settlement:read',
+      'inventory:item:read',
+      'inventory:item:create',
+      'inventory:movement:execute',
     ],
     maxApprovalAmount: role
       ? Number(role.maxApprovalAmount)
@@ -625,7 +650,11 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'POST' && pathname === '/api/core/auth/mfa/verify') {
       const body = await readJsonBody(req);
-      const result = await identityService.verifyMfaSession(body.sessionId, body.totpCode);
+      const result = await identityService.verifyMfaSession(
+        body.sessionId,
+        body.totpCode,
+        body.mfaChallengeToken
+      );
       sendJson(res, 200, { success: true, data: result }, req);
       return;
     }
@@ -642,8 +671,8 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     const revokeSessionMatch = pathname.match(/^\/api\/core\/auth\/sessions\/([^/]+)\/revoke$/);
     if (req.method === 'POST' && revokeSessionMatch) {
-      await buildExecutionContext(req);
-      const revoked = identityService.revokeSession(revokeSessionMatch[1]);
+      const ctx = await buildExecutionContext(req);
+      const revoked = identityService.revokeSession(revokeSessionMatch[1], ctx);
       sendJson(res, 200, { success: true, data: revoked }, req);
       return;
     }
@@ -790,9 +819,15 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
       const company = await prisma.company.findUnique({ where: { id: payable.companyId } });
       const context = await buildExecutionContext(
         req,
-        company?.code || 'EMP-01',
+        body.companyCode || company?.code,
         body.roleCode || 'FINANCIAL_MANAGER'
       );
+
+      if (payable.tenantId !== context.tenantId || payable.companyId !== context.companyId) {
+        throw new Error(
+          'FORBIDDEN_CROSS_COMPANY_ACCESS: Título a pagar pertence a outra empresa ou organização.'
+        );
+      }
 
       const approved = await financialModule.controller.approvePayable(context, payableId);
       await auditService.record({
@@ -823,17 +858,29 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
       const company = await prisma.company.findUnique({ where: { id: payable.companyId } });
       const context = await buildExecutionContext(
         req,
-        company?.code || 'EMP-01',
+        body.companyCode || company?.code,
         body.roleCode || 'FINANCIAL_MANAGER'
       );
 
-      const bankAccount =
-        (body.bankAccountId
-          ? await prisma.bankAccount.findUnique({ where: { id: body.bankAccountId } })
-          : null) ||
-        (await prisma.bankAccount.findFirst({ where: { companyId: payable.companyId } }));
+      if (payable.tenantId !== context.tenantId || payable.companyId !== context.companyId) {
+        throw new Error(
+          'FORBIDDEN_CROSS_COMPANY_ACCESS: Título a pagar pertence a outra empresa ou organização.'
+        );
+      }
 
-      if (!bankAccount) {
+      const targetBankAccountId =
+        body.bankAccountId ||
+        (
+          await prisma.bankAccount.findFirst({
+            where: {
+              tenantId: context.tenantId,
+              companyId: context.companyId,
+              isActive: true,
+            },
+          })
+        )?.id;
+
+      if (!targetBankAccountId) {
         sendJson(res, 400, { success: false, message: 'Nenhuma conta bancária ativa para a empresa.' });
         return;
       }
@@ -841,7 +888,7 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
       const remaining = Number(payable.netAmount) - Number(payable.paidAmount);
       const settled = await financialModule.controller.settlePayable(context, {
         payableId: payable.id,
-        bankAccountId: bankAccount.id,
+        bankAccountId: targetBankAccountId,
         amount: Number(body.amount || remaining),
         paymentMethod: body.paymentMethod || 'PIX',
         externalBankRef: body.externalBankRef,
@@ -966,8 +1013,11 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
     if (req.method === 'POST' && pathname === '/api/crm/customers') {
       const body = await readJsonBody(req);
       const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
       const customer = await crmService.createCustomer({
-        companyCode: body.companyCode || 'EMP-01',
+        companyCode: authCompany?.code || body.companyCode || 'EMP-01',
         roleCode: ctx.roleCode,
         code: body.code || `CLI-${Math.floor(1000 + Math.random() * 9000)}`,
         legalName: body.legalName,
@@ -984,8 +1034,11 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
     if (req.method === 'POST' && pathname === '/api/crm/opportunities') {
       const body = await readJsonBody(req);
       const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
       const created = await crmService.createOpportunity({
-        companyCode: body.companyCode || 'EMP-01',
+        companyCode: authCompany?.code || body.companyCode || 'EMP-01',
         roleCode: ctx.roleCode,
         customerId: body.customerId,
         code: body.code || `OPP-2026-${Math.floor(100 + Math.random() * 900)}`,
@@ -1005,9 +1058,14 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
     if (req.method === 'POST' && winOppMatch) {
       const body = await readJsonBody(req);
       const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
       const won = await crmService.winOpportunityAndBill({
         opportunityId: winOppMatch[1],
         roleCode: ctx.roleCode,
+        companyCode: authCompany?.code || body.companyCode || 'EMP-01',
+        context: ctx,
       });
       sendJson(res, 200, { success: true, data: won }, req);
       return;
@@ -1015,8 +1073,11 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'GET' && pathname === '/api/crm/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
-      await buildExecutionContext(req, companyCode);
-      const summary = await crmService.getCrmSummary(companyCode);
+      const ctx = await buildExecutionContext(req, companyCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
+      const summary = await crmService.getCrmSummary(authCompany?.code || companyCode, ctx);
       sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
@@ -1024,9 +1085,12 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
     // 8.4 Módulo 07: Compras e Suprimentos — Fornecedores, Mapa de 3 Cotações e Pedidos de Compra (PO)
     if (req.method === 'POST' && pathname === '/api/purchasing/suppliers') {
       const body = await readJsonBody(req);
-      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
       const supplier = await purchasingService.createSupplier({
-        companyCode: body.companyCode || 'EMP-01',
+        companyCode: authCompany?.code || body.companyCode || 'EMP-01',
         code: body.code || `FOR-${Math.floor(1000 + Math.random() * 9000)}`,
         legalName: body.legalName,
         tradeName: body.tradeName,
@@ -1042,9 +1106,12 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'POST' && pathname === '/api/purchasing/orders') {
       const body = await readJsonBody(req);
-      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
       const created = await purchasingService.createPurchaseOrder({
-        companyCode: body.companyCode || 'EMP-01',
+        companyCode: authCompany?.code || body.companyCode || 'EMP-01',
         supplierId: body.supplierId,
         code: body.code || `PO-2026-${Math.floor(1000 + Math.random() * 9000)}`,
         description: body.description,
@@ -1066,9 +1133,14 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         body.companyCode || 'EMP-01',
         body.roleCode || 'FINANCIAL_MANAGER'
       );
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
       const received = await purchasingService.approveAndReceivePurchaseOrder({
         purchaseOrderId: receivePoMatch[1],
         roleCode: ctx.roleCode,
+        companyCode: authCompany?.code || body.companyCode || 'EMP-01',
+        context: ctx,
       });
       sendJson(res, 200, { success: true, data: received }, req);
       return;
@@ -1076,8 +1148,14 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'GET' && pathname === '/api/purchasing/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
-      await buildExecutionContext(req, companyCode);
-      const summary = await purchasingService.getPurchasingSummary(companyCode);
+      const ctx = await buildExecutionContext(req, companyCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
+      const summary = await purchasingService.getPurchasingSummary(
+        authCompany?.code || companyCode,
+        ctx
+      );
       sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
@@ -1085,9 +1163,12 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
     // 8.5 Módulo 08: Estoque e Inventário — Materiais/SKUs, Custo Médio Ponderado Móvel e Ficha Kardex
     if (req.method === 'POST' && pathname === '/api/inventory/items') {
       const body = await readJsonBody(req);
-      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
       const item = await inventoryService.createInventoryItem({
-        companyCode: body.companyCode || 'EMP-01',
+        companyCode: authCompany?.code || body.companyCode || 'EMP-01',
         sku: body.sku || `MAT-${Math.floor(1000 + Math.random() * 9000)}`,
         name: body.name,
         category: body.category || 'IT_EQUIPMENT',
@@ -1096,6 +1177,7 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         quantityOnHand: Number(body.quantityOnHand ?? 10),
         reorderPoint: Number(body.reorderPoint ?? 3),
         averageUnitCost: Number(body.averageUnitCost ?? 4500),
+        context: ctx,
       });
       sendJson(res, 201, { success: true, data: item }, req);
       return;
@@ -1103,15 +1185,19 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'POST' && pathname === '/api/inventory/movements') {
       const body = await readJsonBody(req);
-      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
       const movement = await inventoryService.recordStockMovement({
-        companyCode: body.companyCode || 'EMP-01',
+        companyCode: authCompany?.code || body.companyCode || 'EMP-01',
         itemId: body.itemId,
         movementType: body.movementType || 'OUTBOUND_REQUISITION',
         quantity: Number(body.quantity || 2),
         unitCost: body.unitCost ? Number(body.unitCost) : undefined,
         referenceDocument: body.referenceDocument,
         notes: body.notes,
+        context: ctx,
       });
       sendJson(res, 201, { success: true, data: movement }, req);
       return;
@@ -1119,8 +1205,14 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'GET' && pathname === '/api/inventory/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
-      await buildExecutionContext(req, companyCode);
-      const summary = await inventoryService.getInventorySummary(companyCode);
+      const ctx = await buildExecutionContext(req, companyCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
+      const summary = await inventoryService.getInventorySummary(
+        authCompany?.code || companyCode,
+        ctx
+      );
       sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
@@ -1128,9 +1220,12 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
     // 8.6 Módulo 09: Patrimônio e Depreciação Linear CPC 27 — Bens Imobilizados e Quotas Mensais
     if (req.method === 'POST' && pathname === '/api/assets/fixed-assets') {
       const body = await readJsonBody(req);
-      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
       const registered = await assetsService.registerFixedAsset({
-        companyCode: body.companyCode || 'EMP-01',
+        companyCode: authCompany?.code || body.companyCode || 'EMP-01',
         assetTag: body.assetTag || `PAT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
         name: body.name,
         category: body.category || 'IT_INFRASTRUCTURE',
@@ -1145,9 +1240,12 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'POST' && pathname === '/api/assets/depreciation/run') {
       const body = await readJsonBody(req);
-      await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', body.roleCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
       const processed = await assetsService.runMonthlyDepreciation({
-        companyCode: body.companyCode || 'EMP-01',
+        companyCode: authCompany?.code || body.companyCode || 'EMP-01',
         competenceMonth: body.competenceMonth || '2026-11',
       });
       sendJson(res, 201, { success: true, data: processed }, req);
@@ -1156,8 +1254,11 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'GET' && pathname === '/api/assets/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
-      await buildExecutionContext(req, companyCode);
-      const summary = await assetsService.getAssetsSummary(companyCode);
+      const ctx = await buildExecutionContext(req, companyCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
+      const summary = await assetsService.getAssetsSummary(authCompany?.code || companyCode);
       sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
@@ -1223,8 +1324,13 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'GET' && pathname === '/api/sales-payments/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
-      await buildExecutionContext(req, companyCode);
-      const summary = await salesPaymentsService.getSalesAndPaymentsSummary(companyCode);
+      const ctx = await buildExecutionContext(req, companyCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
+      const summary = await salesPaymentsService.getSalesAndPaymentsSummary(
+        authCompany?.code || companyCode
+      );
       sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
@@ -1297,8 +1403,13 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
 
     if (req.method === 'GET' && pathname === '/api/enterprise-ops/summary') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
-      await buildExecutionContext(req, companyCode);
-      const summary = await enterpriseOpsService.getEnterpriseOpsSummary(companyCode);
+      const ctx = await buildExecutionContext(req, companyCode);
+      const authCompany = await prisma.company.findFirst({
+        where: { id: ctx.companyId, tenantId: ctx.tenantId },
+      });
+      const summary = await enterpriseOpsService.getEnterpriseOpsSummary(
+        authCompany?.code || companyCode
+      );
       sendJson(res, 200, { success: true, data: summary }, req);
       return;
     }
@@ -1342,9 +1453,10 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
     // 10. Overview Consolidado (/api/foundation/overview)
     if (req.method === 'GET' && pathname === '/api/foundation/overview') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';
-      await buildExecutionContext(req, companyCode);
+      const ctx = await buildExecutionContext(req, companyCode);
 
       const tenant = await prisma.tenant.findFirst({
+        where: { id: ctx.tenantId },
         include: {
           companies: { orderBy: { code: 'asc' } },
           roles: {
@@ -1368,8 +1480,12 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         return;
       }
 
-      const activeCompany =
-        tenant.companies.find((c) => c.code === companyCode) || tenant.companies[0];
+      const activeCompany = tenant.companies.find((c) => c.id === ctx.companyId);
+      if (!activeCompany) {
+        throw new Error(
+          `FORBIDDEN_CROSS_COMPANY_ACCESS: Empresa ativa não pertence ao contexto autorizado (${companyCode}).`
+        );
+      }
 
       const [
         branches,
@@ -1396,33 +1512,47 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         outboxEvents,
         workflows,
       ] = await Promise.all([
-        prisma.branch.findMany({ where: { companyId: activeCompany.id }, orderBy: { code: 'asc' } }),
-        prisma.department.findMany({ where: { companyId: activeCompany.id }, orderBy: { code: 'asc' } }),
-        prisma.costCenter.findMany({ where: { companyId: activeCompany.id }, orderBy: { code: 'asc' } }),
+        prisma.branch.findMany({
+          where: { tenantId: ctx.tenantId, companyId: activeCompany.id },
+          orderBy: { code: 'asc' },
+        }),
+        prisma.department.findMany({
+          where: { tenantId: ctx.tenantId, companyId: activeCompany.id },
+          orderBy: { code: 'asc' },
+        }),
+        prisma.costCenter.findMany({
+          where: { tenantId: ctx.tenantId, companyId: activeCompany.id },
+          orderBy: { code: 'asc' },
+        }),
         prisma.tenantModuleSubscription.findMany({
-          where: { tenantId: tenant.id, companyId: activeCompany.id },
+          where: { tenantId: ctx.tenantId, companyId: activeCompany.id },
         }),
         prisma.permission.findMany({ orderBy: { code: 'asc' } }),
-        prisma.chartOfAccount.findMany({ where: { companyId: activeCompany.id }, orderBy: { code: 'asc' } }),
-        prisma.financialCategory.findMany({ where: { companyId: activeCompany.id } }),
+        prisma.chartOfAccount.findMany({
+          where: { tenantId: ctx.tenantId, companyId: activeCompany.id },
+          orderBy: { code: 'asc' },
+        }),
+        prisma.financialCategory.findMany({
+          where: { tenantId: ctx.tenantId, companyId: activeCompany.id },
+        }),
         prisma.accountPayable.findMany({
-          where: { companyId: activeCompany.id },
+          where: { tenantId: ctx.tenantId, companyId: activeCompany.id },
           include: { category: true, costCenter: true },
           orderBy: { createdAt: 'desc' },
           take: 15,
         }),
-        financialModule.service.getCashFlowSummary(tenant.id, activeCompany.id),
-        accountingService.getTrialBalanceAndDre(tenant.id, activeCompany.id),
-        fiscalService.getTaxApurationSummary(tenant.id, activeCompany.id),
-        hrService.getHrAndEsocialSummary(tenant.id, activeCompany.id),
-        crmService.getCrmSummary(activeCompany.code),
-        purchasingService.getPurchasingSummary(activeCompany.code),
-        inventoryService.getInventorySummary(activeCompany.code),
+        financialModule.service.getCashFlowSummary(ctx.tenantId, activeCompany.id),
+        accountingService.getTrialBalanceAndDre(ctx.tenantId, activeCompany.id),
+        fiscalService.getTaxApurationSummary(ctx.tenantId, activeCompany.id),
+        hrService.getHrAndEsocialSummary(ctx.tenantId, activeCompany.id),
+        crmService.getCrmSummary(activeCompany.code, ctx),
+        purchasingService.getPurchasingSummary(activeCompany.code, ctx),
+        inventoryService.getInventorySummary(activeCompany.code, ctx),
         assetsService.getAssetsSummary(activeCompany.code),
         salesPaymentsService.getSalesAndPaymentsSummary(activeCompany.code),
         enterpriseOpsService.getEnterpriseOpsSummary(activeCompany.code),
         prisma.journalEntry.findMany({
-          where: { companyId: activeCompany.id },
+          where: { tenantId: ctx.tenantId, companyId: activeCompany.id },
           include: {
             lines: { include: { chartOfAccount: true } },
           },
@@ -1430,7 +1560,7 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
           take: 12,
         }),
         prisma.event.findMany({
-          where: { tenantId: tenant.id },
+          where: { tenantId: ctx.tenantId },
           include: {
             producer: true,
             ticketBatches: { orderBy: { faceValue: 'asc' } },
@@ -1438,18 +1568,18 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
           },
         }),
         prisma.auditLog.findMany({
-          where: { tenantId: tenant.id },
+          where: { tenantId: ctx.tenantId, companyId: activeCompany.id },
           include: { user: true },
           orderBy: { occurredAt: 'desc' },
           take: 20,
         }),
         prisma.outboxEvent.findMany({
-          where: { tenantId: tenant.id },
+          where: { tenantId: ctx.tenantId, companyId: activeCompany.id },
           orderBy: { occurredAt: 'desc' },
           take: 15,
         }),
         prisma.workflowInstance.findMany({
-          where: { companyId: activeCompany.id },
+          where: { tenantId: ctx.tenantId, companyId: activeCompany.id },
           orderBy: { createdAt: 'desc' },
           take: 15,
         }),

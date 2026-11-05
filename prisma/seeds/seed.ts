@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import crypto from 'node:crypto';
 import { ModuleCode, UserType, AccountNature } from '@prisma/client';
 import { PrismaService } from '../../apps/api/src/infrastructure/database/prisma.service';
 import { IdentityService } from '../../apps/api/src/core/auth/identity.service';
@@ -6,6 +7,11 @@ import { IdentityService } from '../../apps/api/src/core/auth/identity.service';
 const prisma = new PrismaService();
 
 async function main() {
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_SEED !== 'true') {
+    throw new Error(
+      'SEED_BLOCKED_IN_PRODUCTION: A carga demonstrativa (seed) está bloqueada em produção. Defina ALLOW_PRODUCTION_SEED=true explicitamente se desejar inicializar um ambiente homologado.'
+    );
+  }
   console.log('🌱 Iniciando seed da Fundação + Entrega 2 (Core Identity, RBAC/ABAC, Multiempresa & Workflow)...');
 
   // 1. Organização (Tenant) Principal
@@ -133,6 +139,9 @@ async function main() {
     { moduleCode: ModuleCode.ACCOUNTING, code: 'accounting:journal:post', name: 'Efetivar lançamentos contábeis de partidas dobradas' },
     { moduleCode: ModuleCode.WORKFLOW, code: 'workflow:approval:decide', name: 'Aprovar ou rejeitar solicitações no motor de Workflow' },
     { moduleCode: ModuleCode.EVENTS, code: 'events:settlement:read', name: 'Consultar borderô financeiro e repasses de eventos' },
+    { moduleCode: ModuleCode.INVENTORY, code: 'inventory:item:read', name: 'Consultar catálogo de almoxarifado e ficha Kardex' },
+    { moduleCode: ModuleCode.INVENTORY, code: 'inventory:item:create', name: 'Cadastrar materiais e SKUs de estoque' },
+    { moduleCode: ModuleCode.INVENTORY, code: 'inventory:movement:execute', name: 'Movimentar estoque (entradas, requisições e transferências)' },
   ];
 
   const createdPermissions = [];
@@ -958,11 +967,18 @@ async function main() {
   });
 
   // 8. Usuários com Hash PBKDF2-SHA512 e MFA configurado
-  const secureHash = IdentityService.hashPassword('Delta@2026');
+  // Segurança (Achado 5): update: {} garante que o seed nunca sobrescreva senhas ou segredos MFA já alterados pelos usuários.
+  const initialPassword = process.env.SEED_INITIAL_PASSWORD || 'Delta@2026';
+  const secureHash = IdentityService.hashPassword(initialPassword);
+  const initialMfaSecret =
+    process.env.MFA_TOTP_SECRET ||
+    (process.env.NODE_ENV === 'production'
+      ? crypto.randomBytes(20).toString('hex')
+      : '3132333435363738393031323334353637383930');
 
   const adminUser = await prisma.user.upsert({
     where: { tenantId_email: { tenantId: tenant.id, email: 'admin@deltaerp.com.br' } },
-    update: { passwordHash: secureHash },
+    update: {},
     create: {
       tenantId: tenant.id,
       email: 'admin@deltaerp.com.br',
@@ -970,14 +986,14 @@ async function main() {
       fullName: 'Diretoria Executiva DELTA',
       userType: UserType.INTERNAL,
       mfaEnabled: true,
-      mfaSecretEncrypted: '3132333435363738393031323334353637383930',
+      mfaSecretEncrypted: initialMfaSecret,
       lgpdConsentAt: new Date(),
     },
   });
 
   const managerUser = await prisma.user.upsert({
     where: { tenantId_email: { tenantId: tenant.id, email: 'financeiro@deltaerp.com.br' } },
-    update: { passwordHash: secureHash },
+    update: {},
     create: {
       tenantId: tenant.id,
       email: 'financeiro@deltaerp.com.br',

@@ -250,6 +250,21 @@ export class FinancialService {
         throw new Error('PAYABLE_NOT_FOUND: Título a pagar não encontrado na empresa ativa.');
       }
 
+      const bankAccount = await tx.bankAccount.findFirst({
+        where: {
+          id: dto.bankAccountId,
+          tenantId: context.tenantId,
+          companyId: context.companyId,
+          isActive: true,
+        },
+      });
+
+      if (!bankAccount) {
+        throw new Error(
+          'FORBIDDEN_CROSS_COMPANY_BANK_ACCOUNT: Conta bancária inválida, inativa ou pertencente a outra empresa/organização.'
+        );
+      }
+
       const entity = new AccountPayableEntity({
         id: payable.id,
         tenantId: payable.tenantId,
@@ -279,11 +294,53 @@ export class FinancialService {
       const newPaidAmount = roundCurrency(Number(payable.paidAmount) + dto.amount);
       const newStatus = newPaidAmount >= entity.netAmount ? 'PAID' : 'PARTIALLY_PAID';
 
+      // Controle de concorrência otimista atômico (compare-and-swap de status + paidAmount)
+      // Impede que duas liquidações simultâneas leiam o mesmo paidAmount e gerem pagamento excedente.
+      let updatedPayable: any;
+      if (typeof (tx.accountPayable as any).updateMany === 'function') {
+        const conditionalUpdate = await tx.accountPayable.updateMany({
+          where: {
+            id: payable.id,
+            tenantId: context.tenantId,
+            companyId: context.companyId,
+            status: payable.status,
+            paidAmount: payable.paidAmount,
+          },
+          data: {
+            paidAmount: newPaidAmount,
+            status: newStatus,
+          },
+        });
+
+        if (conditionalUpdate.count !== 1) {
+          throw new Error(
+            'CONCURRENT_SETTLEMENT_CONFLICT: O título sofreu atualização concorrente durante a liquidação. Operação abortada para impedir pagamento excedente.'
+          );
+        }
+
+        updatedPayable =
+          (await tx.accountPayable.findFirst({
+            where: { id: payable.id, tenantId: context.tenantId, companyId: context.companyId },
+          })) || {
+            ...payable,
+            paidAmount: newPaidAmount,
+            status: newStatus,
+          };
+      } else {
+        updatedPayable = await tx.accountPayable.update({
+          where: { id: payable.id },
+          data: {
+            paidAmount: newPaidAmount,
+            status: newStatus,
+          },
+        });
+      }
+
       const transaction = await tx.financialTransaction.create({
         data: {
           tenantId: context.tenantId,
           companyId: context.companyId,
-          bankAccountId: dto.bankAccountId,
+          bankAccountId: bankAccount.id,
           payableId: payable.id,
           type: 'DEBIT',
           amount: dto.amount,
@@ -297,22 +354,35 @@ export class FinancialService {
         },
       });
 
-      await tx.bankAccount.update({
-        where: { id: dto.bankAccountId },
-        data: {
-          currentBalance: {
-            decrement: dto.amount,
+      if (typeof (tx.bankAccount as any).updateMany === 'function') {
+        const bankUpdate = await tx.bankAccount.updateMany({
+          where: {
+            id: bankAccount.id,
+            tenantId: context.tenantId,
+            companyId: context.companyId,
+            isActive: true,
           },
-        },
-      });
-
-      const updatedPayable = await tx.accountPayable.update({
-        where: { id: payable.id },
-        data: {
-          paidAmount: newPaidAmount,
-          status: newStatus,
-        },
-      });
+          data: {
+            currentBalance: {
+              decrement: dto.amount,
+            },
+          },
+        });
+        if (bankUpdate.count !== 1) {
+          throw new Error(
+            'FORBIDDEN_CROSS_COMPANY_BANK_ACCOUNT: Conta bancária não pôde ser debitada no escopo da empresa autorizada.'
+          );
+        }
+      } else {
+        await tx.bankAccount.update({
+          where: { id: bankAccount.id },
+          data: {
+            currentBalance: {
+              decrement: dto.amount,
+            },
+          },
+        });
+      }
 
       // INTEGRAÇÃO AUTOMÁTICA FINANCEIRO -> CONTABILIDADE (Partidas Dobradas)
       const [bankChartAcc, expenseOrLiabilityAcc, lastEntry] = await Promise.all([

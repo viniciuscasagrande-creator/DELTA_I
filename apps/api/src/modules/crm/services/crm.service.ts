@@ -1,5 +1,6 @@
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
-import { roundCurrency } from '@delta-erp/shared';
+import { roundCurrency, TenantExecutionContext } from '@delta-erp/shared';
+import { CoreSecurityPolicy } from '../../../core/permissions/permission.guard';
 
 export interface ProposalPricingInput {
   grossAmount: number;
@@ -280,6 +281,8 @@ export class CrmService {
   async winOpportunityAndBill(input: {
     opportunityId: string;
     roleCode?: string;
+    companyCode?: string;
+    context?: TenantExecutionContext;
   }) {
     const opp = await this.prisma.salesOpportunity.findUnique({
       where: { id: input.opportunityId },
@@ -288,6 +291,18 @@ export class CrmService {
 
     if (!opp) {
       throw new Error('Oportunidade comercial não localizada.');
+    }
+    if (input.context) {
+      CoreSecurityPolicy.assertTenantAndCompanyIsolation(
+        input.context,
+        opp.tenantId,
+        opp.companyId
+      );
+    }
+    if (input.companyCode && opp.company && opp.company.code !== input.companyCode) {
+      throw new Error(
+        `FORBIDDEN_CROSS_COMPANY_ACCESS: Oportunidade (${opp.id}) pertence a outra empresa.`
+      );
     }
     if (opp.stage === 'CLOSED_WON') {
       throw new Error(`A oportunidade ${opp.code} já foi fechada e faturada anteriormente.`);
@@ -548,21 +563,28 @@ export class CrmService {
    * Retorna resumo consolidado do Módulo 06 (Comercial & CRM):
    * Clientes, Funil de Oportunidades, Forecast Ponderado, Receita Ganha e Comissões.
    */
-  async getCrmSummary(companyCode: string) {
-    const company = await this.prisma.company.findFirst({
-      where: { code: companyCode },
-    });
+  async getCrmSummary(companyCode: string, context?: TenantExecutionContext) {
+    const company = context
+      ? await this.prisma.company.findFirst({
+          where: { id: context.companyId, tenantId: context.tenantId },
+        })
+      : await this.prisma.company.findFirst({
+          where: { code: companyCode },
+        });
     if (!company) {
       throw new Error(`Empresa ${companyCode} não encontrada.`);
+    }
+    if (context) {
+      CoreSecurityPolicy.assertTenantAndCompanyIsolation(context, company.tenantId, company.id);
     }
 
     const [customers, opportunities] = await Promise.all([
       this.prisma.customer.findMany({
-        where: { companyId: company.id },
+        where: { tenantId: company.tenantId, companyId: company.id },
         orderBy: { code: 'asc' },
       }),
       this.prisma.salesOpportunity.findMany({
-        where: { companyId: company.id },
+        where: { tenantId: company.tenantId, companyId: company.id },
         include: { customer: true },
         orderBy: { createdAt: 'desc' },
       }),

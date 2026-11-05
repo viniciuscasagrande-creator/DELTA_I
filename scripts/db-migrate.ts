@@ -682,23 +682,41 @@ async function runMigration() {
         DECLARE
           t text;
         BEGIN
+          -- 1. Isolamento estrito por Tenant na tabela de empresas (nega acesso sem contexto app.current_tenant_id)
+          ALTER TABLE core_companies ENABLE ROW LEVEL SECURITY;
+          ALTER TABLE core_companies FORCE ROW LEVEL SECURITY;
+          DROP POLICY IF EXISTS tenant_isolation_rls_policy ON core_companies;
+          CREATE POLICY tenant_isolation_rls_policy ON core_companies
+            USING (
+              current_setting('app.current_tenant_id', true) IS NOT NULL
+              AND current_setting('app.current_tenant_id', true) <> ''
+              AND "tenantId"::text = current_setting('app.current_tenant_id', true)
+            )
+            WITH CHECK (
+              current_setting('app.current_tenant_id', true) IS NOT NULL
+              AND current_setting('app.current_tenant_id', true) <> ''
+              AND "tenantId"::text = current_setting('app.current_tenant_id', true)
+            );
+
+          -- 2. Isolamento estrito por Tenant E Empresa (companyId) em todas as tabelas operacionais multiempresa
           FOREACH t IN ARRAY ARRAY[
-            'core_companies', 'core_branches', 'core_departments', 'core_cost_centers',
+            'core_branches', 'core_departments', 'core_cost_centers',
             'fin_bank_accounts', 'fin_accounts_payable', 'fin_accounts_receivable', 'fin_transactions',
             'acc_chart_of_accounts', 'acc_journal_entries', 'fis_documents', 'hr_employees',
-            'crm_customers', 'pur_orders', 'inv_items', 'ast_fixed_assets', 'sls_orders',
-            'pay_gateway_transactions', 'ctr_contracts', 'sac_support_tickets', 'mkt_campaigns', 'doc_digital_documents'
+            'crm_customers', 'crm_opportunities', 'pur_suppliers', 'pur_orders',
+            'inv_items', 'inv_movements', 'ast_fixed_assets', 'ast_depreciation_runs',
+            'sls_orders', 'pay_gateway_transactions', 'ctr_contracts',
+            'sac_support_tickets', 'mkt_campaigns', 'doc_digital_documents'
           ]
           LOOP
             EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
-            IF NOT EXISTS (
-              SELECT 1 FROM pg_policies WHERE tablename = t AND policyname = 'tenant_isolation_rls_policy'
-            ) THEN
-              EXECUTE format(
-                'CREATE POLICY tenant_isolation_rls_policy ON %I USING (current_setting(''app.current_tenant_id'', true) IS NULL OR current_setting(''app.current_tenant_id'', true) = '''' OR "tenantId"::text = current_setting(''app.current_tenant_id'', true));',
-                t
-              );
-            END IF;
+            EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY;', t);
+            EXECUTE format('DROP POLICY IF EXISTS tenant_isolation_rls_policy ON %I;', t);
+            EXECUTE format('DROP POLICY IF EXISTS tenant_company_isolation_rls_policy ON %I;', t);
+            EXECUTE format(
+              'CREATE POLICY tenant_company_isolation_rls_policy ON %I USING (current_setting(''app.current_tenant_id'', true) IS NOT NULL AND current_setting(''app.current_tenant_id'', true) <> '''' AND current_setting(''app.current_company_id'', true) IS NOT NULL AND current_setting(''app.current_company_id'', true) <> '''' AND "tenantId"::text = current_setting(''app.current_tenant_id'', true) AND "companyId"::text = current_setting(''app.current_company_id'', true)) WITH CHECK (current_setting(''app.current_tenant_id'', true) IS NOT NULL AND current_setting(''app.current_tenant_id'', true) <> '''' AND current_setting(''app.current_company_id'', true) IS NOT NULL AND current_setting(''app.current_company_id'', true) <> '''' AND "tenantId"::text = current_setting(''app.current_tenant_id'', true) AND "companyId"::text = current_setting(''app.current_company_id'', true));',
+              t
+            );
           END LOOP;
         END $$;
       `);

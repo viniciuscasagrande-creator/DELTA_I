@@ -16,4 +16,18 @@ export default defineConfig({
     port: 5173,
     host: true,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
+          if (id.includes('/src/pages/') || id.includes('\\src\\pages\\') || id.includes('/src/data/') || id.includes('\\src\\data\\')) {
+            return 'erp-modules';
+          }
+        },
+      },
+    },
+  },
 });

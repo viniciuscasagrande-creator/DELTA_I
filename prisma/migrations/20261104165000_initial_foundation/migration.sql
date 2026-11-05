@@ -1428,3 +1428,45 @@ ALTER TABLE "mkt_campaigns" ADD CONSTRAINT "mkt_campaigns_companyId_fkey" FOREIG
 -- AddForeignKey
 ALTER TABLE "doc_digital_documents" ADD CONSTRAINT "doc_digital_documents_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "core_companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
+-- Row-Level Security (RLS) Estrita por Tenant e Empresa (Unificada com db-migrate.ts)
+DO $$
+DECLARE
+  t text;
+BEGIN
+  ALTER TABLE core_companies ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE core_companies FORCE ROW LEVEL SECURITY;
+  DROP POLICY IF EXISTS tenant_isolation_rls_policy ON core_companies;
+  CREATE POLICY tenant_isolation_rls_policy ON core_companies
+    USING (
+      current_setting('app.current_tenant_id', true) IS NOT NULL
+      AND current_setting('app.current_tenant_id', true) <> ''
+      AND "tenantId"::text = current_setting('app.current_tenant_id', true)
+    )
+    WITH CHECK (
+      current_setting('app.current_tenant_id', true) IS NOT NULL
+      AND current_setting('app.current_tenant_id', true) <> ''
+      AND "tenantId"::text = current_setting('app.current_tenant_id', true)
+    );
+
+  FOREACH t IN ARRAY ARRAY[
+    'core_branches', 'core_departments', 'core_cost_centers',
+    'fin_bank_accounts', 'fin_accounts_payable', 'fin_accounts_receivable', 'fin_transactions',
+    'acc_chart_of_accounts', 'acc_journal_entries', 'fis_documents', 'hr_employees',
+    'crm_customers', 'crm_opportunities', 'pur_suppliers', 'pur_orders',
+    'inv_items', 'inv_movements', 'ast_fixed_assets', 'ast_depreciation_runs',
+    'sls_orders', 'pay_gateway_transactions', 'ctr_contracts',
+    'sac_support_tickets', 'mkt_campaigns', 'doc_digital_documents'
+  ]
+  LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
+    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY;', t);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation_rls_policy ON %I;', t);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_company_isolation_rls_policy ON %I;', t);
+    EXECUTE format(
+      'CREATE POLICY tenant_company_isolation_rls_policy ON %I USING (current_setting(''app.current_tenant_id'', true) IS NOT NULL AND current_setting(''app.current_tenant_id'', true) <> '''' AND current_setting(''app.current_company_id'', true) IS NOT NULL AND current_setting(''app.current_company_id'', true) <> '''' AND "tenantId"::text = current_setting(''app.current_tenant_id'', true) AND "companyId"::text = current_setting(''app.current_company_id'', true)) WITH CHECK (current_setting(''app.current_tenant_id'', true) IS NOT NULL AND current_setting(''app.current_tenant_id'', true) <> '''' AND current_setting(''app.current_company_id'', true) IS NOT NULL AND current_setting(''app.current_company_id'', true) <> '''' AND "tenantId"::text = current_setting(''app.current_tenant_id'', true) AND "companyId"::text = current_setting(''app.current_company_id'', true));',
+      t
+    );
+  END LOOP;
+END $$;
+
+

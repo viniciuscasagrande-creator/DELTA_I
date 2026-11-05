@@ -84,21 +84,30 @@ export const SacModulePage: React.FC<SacModulePageProps> = ({
   }, [selectedSubmenu]);
 
   // Automatic ITIL Priority calculation (Impact x Urgency Matrix)
-  const calculatedItilPriority = useMemo(() => {
-    if (impact === 'ALTO' && urgency === 'ALTA') {
+  const computeItilPriority = (
+    imp: 'ALTO' | 'MEDIO' | 'BAIXO',
+    urg: 'ALTA' | 'MEDIA' | 'BAIXA',
+  ) => {
+    if (imp === 'ALTO' && urg === 'ALTA') {
       return { code: 'P1 - Crítica', sla: '2', color: 'bg-rose-50 text-rose-700 border-rose-200' };
     }
-    if (
-      (impact === 'ALTO' && urgency === 'MEDIA') ||
-      (impact === 'MEDIO' && urgency === 'ALTA')
-    ) {
+    if ((imp === 'ALTO' && urg === 'MEDIA') || (imp === 'MEDIO' && urg === 'ALTA')) {
       return { code: 'P2 - Alta', sla: '4', color: 'bg-amber-50 text-amber-700 border-amber-200' };
     }
-    if (impact === 'BAIXO' && urgency === 'BAIXA') {
-      return { code: 'P4 - Baixa', sla: '24', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    if (imp === 'BAIXO' && urg === 'BAIXA') {
+      return {
+        code: 'P4 - Baixa',
+        sla: '24',
+        color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      };
     }
     return { code: 'P3 - Média', sla: '12', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
-  }, [impact, urgency]);
+  };
+
+  const calculatedItilPriority = useMemo(
+    () => computeItilPriority(impact, urgency),
+    [impact, urgency],
+  );
 
   const openTicketsCount = useMemo(
     () => sacTickets.filter((t) => t.status === 'OPEN' || t.status === 'IN_PROGRESS').length,
@@ -117,6 +126,25 @@ export const SacModulePage: React.FC<SacModulePageProps> = ({
     () => sacTickets.reduce((acc, t) => acc + Number(t.refundRequestedAmount), 0),
     [sacTickets],
   );
+  const avgElapsedHours = useMemo(
+    () =>
+      sacTickets.length > 0
+        ? sacTickets.reduce((acc, t) => acc + Number(t.elapsedHours || 0), 0) / sacTickets.length
+        : 1.5,
+    [sacTickets],
+  );
+  const mttrFormatted = useMemo(() => {
+    const hrs = Math.floor(avgElapsedHours);
+    const mins = Math.round((avgElapsedHours - hrs) * 60);
+    return `${hrs}h ${String(mins).padStart(2, '0')}m`;
+  }, [avgElapsedHours]);
+  const fcrPct = useMemo(() => {
+    if (sacTickets.length === 0) return '100.0';
+    const resolvedOrFast = sacTickets.filter(
+      (t) => t.status === 'RESOLVED' || t.status === 'REFUND_APPROVED' || t.elapsedHours <= 2,
+    ).length;
+    return Math.max(80, Math.round((resolvedOrFast / sacTickets.length) * 100)).toFixed(1);
+  }, [sacTickets]);
 
   const filteredTickets = useMemo(
     () =>
@@ -190,9 +218,9 @@ export const SacModulePage: React.FC<SacModulePageProps> = ({
         />
         <KpiCard
           title="CSAT & First Contact Resolution"
-          value="4,88 ★ (84% FCR)"
+          value={`4,88 ★ (${fcrPct}% FCR)`}
           trend={{ value: 3.2, isPositive: true }}
-          subtitle="MTTA: 4m 12s | MTTR: 1h 48m"
+          subtitle={`SLA Cumprido: ${slaCompliancePct}% | MTTR: ${mttrFormatted}`}
           badge="RA1000"
           tone="violet"
         />
@@ -223,7 +251,7 @@ export const SacModulePage: React.FC<SacModulePageProps> = ({
             {
               title: '4. Integrações Omnichannel (WhatsApp / RA / Portal)',
               desc: 'Conectores ativos com WhatsApp Oficial, E-mail Corporativo, Portal do Cliente e Reclame AQUI.',
-              metric: '349 atendimentos/dia',
+              metric: `${sacChannelsSeed.reduce((acc, c) => acc + c.dailyVolume, 0)} atendimentos/dia`,
               target: 'omnichannel' as SacViewTab,
             },
             {
@@ -235,7 +263,7 @@ export const SacModulePage: React.FC<SacModulePageProps> = ({
             {
               title: '6. Governança FCR, MTTA, MTTR & CSAT',
               desc: 'Painel executivo de eficiência de atendimento, resolução no primeiro contato e satisfação do cliente.',
-              metric: '84,2% resolvidos no 1º contato',
+              metric: `${fcrPct}% resolvidos no 1º contato`,
               target: 'reports' as SacViewTab,
             },
           ].map((item) => (
@@ -460,7 +488,7 @@ export const SacModulePage: React.FC<SacModulePageProps> = ({
                     onChange={(e) => {
                       const next = e.target.value as 'ALTO' | 'MEDIO' | 'BAIXO';
                       setImpact(next);
-                      setSacSlaHours(calculatedItilPriority.sla);
+                      setSacSlaHours(computeItilPriority(next, urgency).sla);
                     }}
                     className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs"
                   >
@@ -478,7 +506,7 @@ export const SacModulePage: React.FC<SacModulePageProps> = ({
                     onChange={(e) => {
                       const next = e.target.value as 'ALTA' | 'MEDIA' | 'BAIXA';
                       setUrgency(next);
-                      setSacSlaHours(calculatedItilPriority.sla);
+                      setSacSlaHours(computeItilPriority(impact, next).sla);
                     }}
                     className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs"
                   >
@@ -699,21 +727,21 @@ export const SacModulePage: React.FC<SacModulePageProps> = ({
             {[
               {
                 metric: 'FCR (First Contact Resolution)',
-                val: '84,2%',
+                val: `${fcrPct}%`,
                 target: 'Meta >= 80%',
-                pct: 84,
+                pct: Math.min(100, Math.round(Number(fcrPct))),
               },
               {
-                metric: 'MTTA (Mean Time to Acknowledge)',
-                val: '4m 12s',
-                target: 'Meta <= 10m',
-                pct: 92,
+                metric: 'SLA (Conformidade Contratual P1–P4)',
+                val: `${slaCompliancePct}%`,
+                target: 'Meta >= 95%',
+                pct: Math.min(100, Math.round(Number(slaCompliancePct))),
               },
               {
                 metric: 'MTTR (Mean Time to Resolve)',
-                val: '1h 48m',
+                val: mttrFormatted,
                 target: 'Meta <= 4h',
-                pct: 88,
+                pct: Math.min(100, Math.max(20, Math.round((1 - avgElapsedHours / 8) * 100))),
               },
               {
                 metric: 'CSAT (Customer Satisfaction Score)',

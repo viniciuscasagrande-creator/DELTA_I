@@ -1,5 +1,6 @@
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
-import { roundCurrency } from '@delta-erp/shared';
+import { roundCurrency, TenantExecutionContext } from '@delta-erp/shared';
+import { CoreSecurityPolicy } from '../../../core/permissions/permission.guard';
 
 export interface MovingAverageInput {
   currentQty: number;
@@ -100,24 +101,56 @@ export class InventoryService {
     quantityOnHand: number;
     reorderPoint: number;
     averageUnitCost: number;
+    context?: TenantExecutionContext;
   }) {
-    const company = await this.prisma.company.findFirst({
-      where: { code: input.companyCode },
-    });
+    if (input.context) {
+      CoreSecurityPolicy.assertPermissionAndScope(input.context, 'inventory:item:create');
+    }
+
+    const company = input.context
+      ? await this.prisma.company.findFirst({
+          where: { id: input.context.companyId, tenantId: input.context.tenantId },
+        })
+      : await this.prisma.company.findFirst({
+          where: { code: input.companyCode },
+        });
     if (!company) {
       throw new Error(`Empresa ${input.companyCode} não localizada.`);
     }
 
-    const actor = await this.prisma.user.findFirst({
-      where: { tenantId: company.tenantId },
-      orderBy: { createdAt: 'asc' },
-    });
+    if (input.context) {
+      CoreSecurityPolicy.assertTenantAndCompanyIsolation(
+        input.context,
+        company.tenantId,
+        company.id
+      );
+      if (input.companyCode && company.code !== input.companyCode) {
+        throw new Error(
+          `FORBIDDEN_CROSS_COMPANY_ACCESS: Tentativa bloqueada de criar SKU na empresa ${input.companyCode} fora do contexto autorizado (${company.code}).`
+        );
+      }
+    }
+
+    const actorId =
+      input.context?.userId ||
+      (
+        await this.prisma.user.findFirst({
+          where: { tenantId: company.tenantId },
+          orderBy: { createdAt: 'asc' },
+        })
+      )?.id;
 
     const qty = roundCurrency(input.quantityOnHand);
     const avgCost = roundCurrency(input.averageUnitCost);
     const totalStockValue = roundCurrency(qty * avgCost);
 
-    return this.prisma.$transaction(async (tx) => {
+    const runTx =
+      typeof (this.prisma as any).executeInTenantTransaction === 'function'
+        ? (fn: (tx: any) => Promise<any>) =>
+            this.prisma.executeInTenantTransaction(company.tenantId, company.id, fn)
+        : (fn: (tx: any) => Promise<any>) => this.prisma.$transaction(fn);
+
+    return runTx(async (tx) => {
       const item = await tx.inventoryItem.create({
         data: {
           tenantId: company.tenantId,
@@ -138,7 +171,7 @@ export class InventoryService {
         data: {
           tenantId: company.tenantId,
           companyId: company.id,
-          userId: actor?.id,
+          userId: actorId,
           moduleCode: 'INVENTORY',
           action: 'CREATE_SKU_ITEM',
           entityName: 'InventoryItem',
@@ -189,13 +222,32 @@ export class InventoryService {
     unitCost?: number;
     referenceDocument?: string;
     notes?: string;
+    context?: TenantExecutionContext;
   }) {
+    if (input.context) {
+      CoreSecurityPolicy.assertPermissionAndScope(input.context, 'inventory:movement:execute');
+    }
+
     const item = await this.prisma.inventoryItem.findUnique({
       where: { id: input.itemId },
       include: { company: true },
     });
     if (!item) {
       throw new Error('Material / SKU não localizado no almoxarifado.');
+    }
+
+    if (input.context) {
+      CoreSecurityPolicy.assertTenantAndCompanyIsolation(
+        input.context,
+        item.tenantId,
+        item.companyId
+      );
+    }
+
+    if (input.companyCode && item.company && item.company.code !== input.companyCode) {
+      throw new Error(
+        `FORBIDDEN_CROSS_COMPANY_ACCESS: Tentativa bloqueada de movimentar material (${item.id}) pertencente à empresa ${item.company.code} a partir do contexto ${input.companyCode}.`
+      );
     }
 
     const company = item.company;
@@ -208,10 +260,12 @@ export class InventoryService {
       inboundUnitCost: input.unitCost,
     });
 
-    const actor = await this.prisma.user.findFirst({
-      where: { tenantId: company.tenantId },
-      orderBy: { createdAt: 'asc' },
-    });
+    const actor = input.context
+      ? { id: input.context.userId }
+      : await this.prisma.user.findFirst({
+          where: { tenantId: company.tenantId },
+          orderBy: { createdAt: 'asc' },
+        });
     if (!actor) {
       throw new Error('Usuário operador não localizado.');
     }
@@ -408,21 +462,38 @@ export class InventoryService {
   /**
    * Retorna resumo consolidado do Módulo 08 (Estoque, Custo Médio e Ficha Kardex).
    */
-  async getInventorySummary(companyCode: string) {
-    const company = await this.prisma.company.findFirst({
-      where: { code: companyCode },
-    });
+  async getInventorySummary(companyCode: string, context?: TenantExecutionContext) {
+    if (context) {
+      CoreSecurityPolicy.assertPermissionAndScope(context, 'inventory:item:read');
+    }
+
+    const company = context
+      ? await this.prisma.company.findFirst({
+          where: { id: context.companyId, tenantId: context.tenantId },
+        })
+      : await this.prisma.company.findFirst({
+          where: { code: companyCode },
+        });
     if (!company) {
       throw new Error(`Empresa ${companyCode} não localizada.`);
     }
 
+    if (context) {
+      CoreSecurityPolicy.assertTenantAndCompanyIsolation(context, company.tenantId, company.id);
+      if (companyCode && company.code !== companyCode) {
+        throw new Error(
+          `FORBIDDEN_CROSS_COMPANY_ACCESS: Tentativa bloqueada de consultar estoque da empresa ${companyCode} fora do contexto autorizado (${company.code}).`
+        );
+      }
+    }
+
     const [items, movements] = await Promise.all([
       this.prisma.inventoryItem.findMany({
-        where: { companyId: company.id },
+        where: { tenantId: company.tenantId, companyId: company.id },
         orderBy: { sku: 'asc' },
       }),
       this.prisma.stockMovement.findMany({
-        where: { companyId: company.id },
+        where: { tenantId: company.tenantId, companyId: company.id },
         include: { item: true },
         orderBy: { occurredAt: 'desc' },
         take: 15,

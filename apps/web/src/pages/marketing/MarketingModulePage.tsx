@@ -143,6 +143,12 @@ export const MarketingModulePage: React.FC<MarketingModulePageProps> = ({
     [marketingCampaigns],
   );
   const avgRoas = totalSpent > 0 ? (totalRevenue / totalSpent).toFixed(2) : '0.00';
+  const avgRoiPct =
+    totalSpent > 0 ? (((totalRevenue - totalSpent) / totalSpent) * 100).toFixed(1) : '0.0';
+  const couponRevenueTotal = useMemo(
+    () => coupons.reduce((acc, c) => acc + Number(c.revenueGenerated || 0), 0),
+    [coupons],
+  );
 
   const filteredUtmLinks = useMemo(
     () =>
@@ -305,7 +311,7 @@ export const MarketingModulePage: React.FC<MarketingModulePageProps> = ({
         />
         <KpiCard
           title="ROI / ROAS Médio Consolidado"
-          value={`${avgRoas}x (342% ROI)`}
+          value={`${avgRoas}x (${avgRoiPct}% ROI)`}
           trend={{ value: 24.0, isPositive: true }}
           subtitle={`Investimento: R$ ${totalSpent.toLocaleString('pt-BR')}`}
           badge="Alta Eficiência"
@@ -321,7 +327,10 @@ export const MarketingModulePage: React.FC<MarketingModulePageProps> = ({
               {
                 title: '1. Dashboard de Performance & Funil',
                 desc: 'Métricas de conversão em 5 etapas, receita atribuída e ROI por canal de aquisição.',
-                metrics: ['R$ 854.100 atribuídos', '342% ROI médio'],
+                metrics: [
+                  `R$ ${totalRevenue.toLocaleString('pt-BR')} atribuídos`,
+                  `${avgRoiPct}% ROI médio`,
+                ],
                 target: 'dashboard' as MarketingViewTab,
                 badge: 'Tempo Real',
               },
@@ -335,7 +344,10 @@ export const MarketingModulePage: React.FC<MarketingModulePageProps> = ({
               {
                 title: '3. Motor de Cupons & Promoções',
                 desc: 'Cupons percentuais ou valor fixo, limite de usos, validade e rastreio de receita no checkout.',
-                metrics: [`${coupons.length} cupons configurados`, 'R$ 422.300 com cupom'],
+                metrics: [
+                  `${coupons.length} cupons configurados`,
+                  `R$ ${couponRevenueTotal.toLocaleString('pt-BR')} com cupom`,
+                ],
                 target: 'coupons' as MarketingViewTab,
                 badge: 'Checkout Nativo',
               },

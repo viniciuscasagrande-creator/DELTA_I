@@ -1,5 +1,6 @@
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
-import { roundCurrency } from '@delta-erp/shared';
+import { roundCurrency, TenantExecutionContext } from '@delta-erp/shared';
+import { CoreSecurityPolicy } from '../../../core/permissions/permission.guard';
 
 export interface QuotationMapInput {
   quote1Amount: number;
@@ -303,6 +304,8 @@ export class PurchasingService {
   async approveAndReceivePurchaseOrder(input: {
     purchaseOrderId: string;
     roleCode?: string;
+    companyCode?: string;
+    context?: TenantExecutionContext;
   }) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id: input.purchaseOrderId },
@@ -310,6 +313,18 @@ export class PurchasingService {
     });
     if (!po) {
       throw new Error('Pedido de Compra (PO) não encontrado.');
+    }
+    if (input.context) {
+      CoreSecurityPolicy.assertTenantAndCompanyIsolation(
+        input.context,
+        po.tenantId,
+        po.companyId
+      );
+    }
+    if (input.companyCode && po.company && po.company.code !== input.companyCode) {
+      throw new Error(
+        `FORBIDDEN_CROSS_COMPANY_ACCESS: Pedido de Compra (${po.id}) pertence a outra empresa.`
+      );
     }
     if (po.status === 'RECEIVED') {
       throw new Error(`O Pedido de Compra ${po.code} já foi aprovado e recebido anteriormente.`);
@@ -539,21 +554,28 @@ export class PurchasingService {
   /**
    * Retorna resumo consolidado do Módulo 07 (Compras e Suprimentos).
    */
-  async getPurchasingSummary(companyCode: string) {
-    const company = await this.prisma.company.findFirst({
-      where: { code: companyCode },
-    });
+  async getPurchasingSummary(companyCode: string, context?: TenantExecutionContext) {
+    const company = context
+      ? await this.prisma.company.findFirst({
+          where: { id: context.companyId, tenantId: context.tenantId },
+        })
+      : await this.prisma.company.findFirst({
+          where: { code: companyCode },
+        });
     if (!company) {
       throw new Error(`Empresa ${companyCode} não localizada.`);
+    }
+    if (context) {
+      CoreSecurityPolicy.assertTenantAndCompanyIsolation(context, company.tenantId, company.id);
     }
 
     const [suppliers, orders] = await Promise.all([
       this.prisma.supplier.findMany({
-        where: { companyId: company.id },
+        where: { tenantId: company.tenantId, companyId: company.id },
         orderBy: { code: 'asc' },
       }),
       this.prisma.purchaseOrder.findMany({
-        where: { companyId: company.id },
+        where: { tenantId: company.tenantId, companyId: company.id },
         include: { supplier: true },
         orderBy: { createdAt: 'desc' },
       }),

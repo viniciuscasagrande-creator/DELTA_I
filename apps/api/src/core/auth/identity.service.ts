@@ -41,8 +41,23 @@ export interface ActiveSessionRecord {
  * - Fluxo seguro de recuperação de senha com token temporário
  */
 export class IdentityService {
+  private static readonly sharedSessions = new Map<string, ActiveSessionRecord>();
+  private static readonly sharedRevokedSessionIds = new Set<string>();
+  private static readonly sharedMfaChallenges = new Map<
+    string,
+    {
+      sessionId: string;
+      userId: string;
+      tenantId: string;
+      companyId: string;
+      expiresAt: number;
+      consumed: boolean;
+      signature: string;
+    }
+  >();
+
   private readonly jwtSecret: string;
-  private readonly sessions = new Map<string, ActiveSessionRecord>();
+  private readonly sessions = IdentityService.sharedSessions;
   private readonly passwordResetTokens = new Map<
     string,
     { userId: string; tenantId: string; expiresAt: number; used: boolean }
@@ -147,12 +162,118 @@ export class IdentityService {
       throw new Error('JWT_EXPIRED: Sessão expirada. Realize novo login.');
     }
 
-    const session = this.sessions.get(payload.sessionId);
-    if (session && session.revokedAt) {
+    if (IdentityService.sharedRevokedSessionIds.has(payload.sessionId)) {
       throw new Error('SESSION_REVOKED: Esta sessão foi encerrada pelo administrador ou usuário.');
     }
 
+    const session = this.sessions.get(payload.sessionId);
+    if (session) {
+      if (session.revokedAt) {
+        IdentityService.sharedRevokedSessionIds.add(payload.sessionId);
+        throw new Error('SESSION_REVOKED: Esta sessão foi encerrada pelo administrador ou usuário.');
+      }
+      if (new Date(session.expiresAt).getTime() <= Date.now()) {
+        throw new Error('JWT_EXPIRED: Sessão expirada. Realize novo login.');
+      }
+    }
+
     return payload;
+  }
+
+  /**
+   * Verifica de forma durável (memória compartilhada + banco de dados) se a sessão não foi revogada
+   * em outra instância ou após reinicialização do processo.
+   */
+  async assertSessionNotRevoked(sessionId: string, tenantId: string): Promise<void> {
+    if (IdentityService.sharedRevokedSessionIds.has(sessionId)) {
+      throw new Error('SESSION_REVOKED: Esta sessão foi encerrada pelo administrador ou usuário.');
+    }
+
+    const inMemory = this.sessions.get(sessionId);
+    if (inMemory?.revokedAt) {
+      IdentityService.sharedRevokedSessionIds.add(sessionId);
+      throw new Error('SESSION_REVOKED: Esta sessão foi encerrada pelo administrador ou usuário.');
+    }
+
+    if (inMemory && new Date(inMemory.expiresAt).getTime() <= Date.now()) {
+      throw new Error('JWT_EXPIRED: Sessão expirada. Realize novo login.');
+    }
+
+    if (typeof (this.prisma as any)?.auditLog?.findFirst === 'function') {
+      const revokedLog = await this.prisma.auditLog.findFirst({
+        where: {
+          tenantId,
+          entityName: 'UserSession',
+          entityId: sessionId,
+          action: 'REVERSE',
+        },
+      });
+      if (revokedLog) {
+        IdentityService.sharedRevokedSessionIds.add(sessionId);
+        throw new Error('SESSION_REVOKED: Esta sessão foi encerrada pelo administrador ou usuário.');
+      }
+    }
+  }
+
+  /**
+   * Assina um desafio temporário de MFA vinculado à sessão autenticada por senha (validade de 5 min)
+   */
+  signMfaChallenge(params: {
+    sessionId: string;
+    userId: string;
+    tenantId: string;
+    companyId: string;
+    expiresAtMs?: number;
+  }): string {
+    const expiresAt = params.expiresAtMs ?? Date.now() + 5 * 60 * 1000;
+    const payloadStr = `${params.sessionId}|${params.userId}|${params.tenantId}|${params.companyId}|${expiresAt}`;
+    const signature = crypto
+      .createHmac('sha256', this.jwtSecret)
+      .update(`mfa_challenge:${payloadStr}`)
+      .digest('base64url');
+    const encoded = Buffer.from(
+      JSON.stringify({
+        sessionId: params.sessionId,
+        userId: params.userId,
+        tenantId: params.tenantId,
+        companyId: params.companyId,
+        expiresAt,
+      })
+    ).toString('base64url');
+    return `${encoded}.${signature}`;
+  }
+
+  private verifyMfaChallengeToken(token: string): {
+    sessionId: string;
+    userId: string;
+    tenantId: string;
+    companyId: string;
+    expiresAt: number;
+  } {
+    const parts = token.split('.');
+    if (parts.length !== 2) {
+      throw new Error('INVALID_MFA_CHALLENGE: Token de desafio MFA malformado.');
+    }
+    const [encoded, signature] = parts;
+    const decoded = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    const payloadStr = `${decoded.sessionId}|${decoded.userId}|${decoded.tenantId}|${decoded.companyId}|${decoded.expiresAt}`;
+    const expectedSig = crypto
+      .createHmac('sha256', this.jwtSecret)
+      .update(`mfa_challenge:${payloadStr}`)
+      .digest('base64url');
+
+    if (
+      signature.length !== expectedSig.length ||
+      !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))
+    ) {
+      throw new Error('INVALID_MFA_CHALLENGE: Assinatura do desafio MFA inválida.');
+    }
+
+    if (Number(decoded.expiresAt) <= Date.now()) {
+      throw new Error('MFA_CHALLENGE_EXPIRED: Desafio MFA expirado. Realize novo login.');
+    }
+
+    return decoded;
   }
 
   /**
@@ -237,6 +358,7 @@ export class IdentityService {
     const sessionId = `sess_${user.id}_${selectedAccess.companyId}_${crypto.randomUUID()}`;
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    const mfaExpiresAtMs = now.getTime() + 5 * 60 * 1000;
 
     const sessionRecord: ActiveSessionRecord = {
       sessionId,
@@ -253,6 +375,24 @@ export class IdentityService {
     };
 
     this.sessions.set(sessionId, sessionRecord);
+
+    const mfaChallengeToken = this.signMfaChallenge({
+      sessionId,
+      userId: user.id,
+      tenantId: user.tenantId,
+      companyId: selectedAccess.companyId,
+      expiresAtMs: mfaExpiresAtMs,
+    });
+
+    IdentityService.sharedMfaChallenges.set(sessionId, {
+      sessionId,
+      userId: user.id,
+      tenantId: user.tenantId,
+      companyId: selectedAccess.companyId,
+      expiresAt: mfaExpiresAtMs,
+      consumed: false,
+      signature: mfaChallengeToken,
+    });
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -311,6 +451,7 @@ export class IdentityService {
     return {
       accessToken,
       sessionId,
+      mfaChallengeToken,
       mfaRequired: user.mfaEnabled,
       ...(allowDemoTotp && configuredMfaSecret
         ? { demoCurrentTotpCode: IdentityService.generateTotpCode(configuredMfaSecret) }
@@ -334,61 +475,118 @@ export class IdentityService {
 
   /**
    * Valida segundo fator TOTP MFA e eleva a sessão para `mfaVerified = true`.
-   * Compatível com ambientes Serverless (Vercel): caso a instância não tenha a sessão em memória,
-   * reconstrói o contexto a partir do banco de dados usando o identificador assinado da sessão.
+   * Exige sessão previamente autenticada por senha (ou desafio criptográfico assinado, limitado no tempo e de uso único),
+   * usuário ativo e sessão não revogada nem expirada. Nunca reconstrói sessão a partir de string não assinada do cliente.
    */
-  async verifyMfaSession(sessionId: string, totpCode: string) {
-    let session = this.sessions.get(sessionId);
-    let user: any = null;
+  async verifyMfaSession(sessionId: string, totpCode: string, mfaChallengeToken?: string) {
+    if (!sessionId || typeof sessionId !== 'string') {
+      throw new Error('SESSION_NOT_FOUND: Identificador de sessão inválido.');
+    }
 
-    if (session) {
-      user = await this.prisma.user.findUnique({
-        where: { id: session.userId },
-        include: {
-          companyAccesses: {
-            where: { isActive: true },
-            include: { role: true },
-          },
-        },
-      });
-    } else if (sessionId && sessionId.startsWith('sess_')) {
-      const parts = sessionId.split('_');
-      const extractedUserId = parts[1];
-      const extractedCompanyId = parts[2];
-      if (extractedUserId) {
-        user = await this.prisma.user.findUnique({
-          where: { id: extractedUserId },
-          include: {
-            companyAccesses: {
-              where: { isActive: true },
-              include: { role: true },
-            },
+    if (IdentityService.sharedRevokedSessionIds.has(sessionId)) {
+      throw new Error('SESSION_REVOKED: Esta sessão foi revogada e não pode ser autenticada.');
+    }
+
+    let session = this.sessions.get(sessionId);
+
+    // Se a sessão não estiver em memória, só permite recuperar mediante desafio MFA assinado via HMAC
+    // e com registro persistido de login prévio no banco (AuditLog CREATE UserSession), nunca via split de string do cliente.
+    if (!session && mfaChallengeToken) {
+      const verifiedChallenge = this.verifyMfaChallengeToken(mfaChallengeToken);
+      if (verifiedChallenge.sessionId !== sessionId) {
+        throw new Error('INVALID_MFA_CHALLENGE: Desafio MFA não corresponde à sessão informada.');
+      }
+
+      if (typeof (this.prisma as any)?.auditLog?.findFirst === 'function') {
+        const persistedLogin = await this.prisma.auditLog.findFirst({
+          where: {
+            tenantId: verifiedChallenge.tenantId,
+            entityName: 'UserSession',
+            entityId: sessionId,
+            action: 'CREATE',
           },
         });
-        if (user) {
-          const access =
-            user.companyAccesses.find((a: any) => a.companyId === extractedCompanyId) ||
-            user.companyAccesses[0];
+        const persistedRevoke = await this.prisma.auditLog.findFirst({
+          where: {
+            tenantId: verifiedChallenge.tenantId,
+            entityName: 'UserSession',
+            entityId: sessionId,
+            action: 'REVERSE',
+          },
+        });
+        if (persistedRevoke) {
+          IdentityService.sharedRevokedSessionIds.add(sessionId);
+          throw new Error('SESSION_REVOKED: Esta sessão foi encerrada.');
+        }
+        if (persistedLogin) {
           const now = new Date();
           session = {
             sessionId,
-            userId: user.id,
-            tenantId: user.tenantId,
-            companyId: access?.companyId || extractedCompanyId,
-            email: user.email,
-            roleCode: access?.role?.code || 'VIEWER',
-            ipAddress: '127.0.0.1',
-            userAgent: 'Enterprise-ERP-Serverless',
+            userId: verifiedChallenge.userId,
+            tenantId: verifiedChallenge.tenantId,
+            companyId: verifiedChallenge.companyId,
+            email: (persistedLogin.newValues as any)?.userEmail || '',
+            roleCode: (persistedLogin.newValues as any)?.roleCode || 'VIEWER',
+            ipAddress: persistedLogin.ipAddress || '127.0.0.1',
+            userAgent: persistedLogin.userAgent || 'Enterprise-ERP-Web',
             mfaVerified: false,
-            createdAt: now.toISOString(),
+            createdAt: persistedLogin.occurredAt.toISOString(),
             expiresAt: new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString(),
           };
         }
       }
     }
 
-    if (!session || !user) {
-      throw new Error('SESSION_NOT_FOUND: Sessão não encontrada ou expirada.');
+    if (!session) {
+      throw new Error('SESSION_NOT_FOUND: Sessão não encontrada ou não autenticada previamente.');
+    }
+
+    if (session.revokedAt) {
+      IdentityService.sharedRevokedSessionIds.add(sessionId);
+      throw new Error('SESSION_REVOKED: Esta sessão foi encerrada e não pode ser elevada.');
+    }
+
+    if (new Date(session.expiresAt).getTime() <= Date.now()) {
+      throw new Error('SESSION_EXPIRED: Sessão expirada. Realize novo login com senha.');
+    }
+
+    const challenge = IdentityService.sharedMfaChallenges.get(sessionId);
+    if (challenge) {
+      if (challenge.consumed) {
+        throw new Error('MFA_CHALLENGE_ALREADY_USED: Desafio MFA de uso único já foi consumido.');
+      }
+      if (challenge.expiresAt <= Date.now()) {
+        throw new Error('MFA_CHALLENGE_EXPIRED: Desafio MFA expirado. Realize novo login.');
+      }
+    }
+
+    if (session.mfaVerified) {
+      throw new Error('MFA_CHALLENGE_ALREADY_USED: Esta sessão já teve o MFA validado.');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: session.userId },
+      include: {
+        companyAccesses: {
+          where: { isActive: true },
+          include: { role: true },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new Error('SESSION_NOT_FOUND: Usuário vinculado à sessão não encontrado.');
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new Error(`USER_NOT_ACTIVE: Conta de usuário com status ${user.status}.`);
+    }
+
+    const activeAccess = user.companyAccesses.find(
+      (a: any) => a.companyId === session!.companyId && a.isActive
+    );
+    if (!activeAccess) {
+      throw new Error('FORBIDDEN_NO_COMPANY_ACCESS: Vínculo de empresa inativo ou inexistente.');
     }
 
     const secretHex =
@@ -405,7 +603,13 @@ export class IdentityService {
       throw new Error('INVALID_MFA_CODE: Código de autenticação multifator (TOTP) inválido.');
     }
 
+    if (challenge) {
+      challenge.consumed = true;
+      IdentityService.sharedMfaChallenges.set(sessionId, challenge);
+    }
+
     session.mfaVerified = true;
+    session.roleCode = activeAccess.role?.code || session.roleCode;
     this.sessions.set(sessionId, session);
 
     const upgradedToken = this.signJwt({
@@ -434,15 +638,62 @@ export class IdentityService {
   }
 
   /**
-   * Revoga imediatamente uma sessão ativa
+   * Revoga imediatamente uma sessão ativa, exigindo que o solicitante seja o próprio titular
+   * ou administrador autorizado da mesma organização, e persiste a revogação.
    */
-  revokeSession(sessionId: string): ActiveSessionRecord {
+  revokeSession(sessionId: string, actor?: TenantExecutionContext): ActiveSessionRecord {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error('SESSION_NOT_FOUND: Sessão informada não existe.');
     }
-    session.revokedAt = new Date().toISOString();
+
+    if (actor) {
+      const isSameTenant = actor.tenantId === session.tenantId;
+      const isOwner = actor.userId === session.userId;
+      const isAdmin =
+        actor.roleCode === 'SUPER_ADMIN' ||
+        actor.permissions?.includes('admin:organization:manage');
+
+      if (!isSameTenant || (!isOwner && !isAdmin)) {
+        throw new Error(
+          'FORBIDDEN_SESSION_REVOKE: Apenas o titular da sessão ou administrador autorizado da organização pode revogá-la.'
+        );
+      }
+    }
+
+    const revokedAt = new Date().toISOString();
+    session.revokedAt = revokedAt;
     this.sessions.set(sessionId, session);
+    IdentityService.sharedRevokedSessionIds.add(sessionId);
+
+    if (typeof (this.auditService as any)?.record === 'function') {
+      const auditContext: TenantExecutionContext = actor || {
+        requestId: `req_revoke_${Date.now()}`,
+        tenantId: session.tenantId,
+        companyId: session.companyId,
+        userId: session.userId,
+        userEmail: session.email,
+        userType: 'INTERNAL',
+        roleCode: session.roleCode,
+        permissions: [],
+        maxApprovalAmount: 0,
+        allowedCostCenterIds: [],
+        ipAddress: session.ipAddress,
+        userAgent: session.userAgent,
+      };
+      Promise.resolve(
+        this.auditService.record({
+          context: auditContext,
+          moduleCode: ErpModuleCode.ADMINISTRATION,
+          entityName: 'UserSession',
+          entityId: sessionId,
+          action: 'REVERSE',
+          previousValues: { revokedAt: null },
+          newValues: { event: 'SESSION_REVOKED', sessionId, revokedAt },
+        })
+      ).catch(() => {});
+    }
+
     return session;
   }
 

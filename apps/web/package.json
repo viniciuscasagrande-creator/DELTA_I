@@ -6,7 +6,7 @@
   "scripts": {
     "db:generate": "prisma generate --schema=../../prisma/schema.prisma || echo 'Skipping prisma generate'",
     "dev": "vite --port 5173",
-    "build": "vite build && node -e \"const fs=require('fs');fs.cpSync('dist','apps/web/dist',{recursive:true})\"",
+    "build": "vite build && node -e \"const fs=require('fs');fs.rmSync('apps/web/dist',{recursive:true,force:true});fs.cpSync('dist','apps/web/dist',{recursive:true})\"",
     "preview": "vite preview --port 5173"
   },
   "dependencies": {

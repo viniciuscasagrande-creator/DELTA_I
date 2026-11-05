@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { formatBRL } from '@delta-erp/shared';
 import { getFallbackOverview } from './fallback-overview';
 import { FinanceModulePage } from './pages/finance/FinanceModulePage';
+import { CommercialModulePage } from './pages/commercial/CommercialModulePage';
 import { AccountingModulePage } from './pages/accounting/AccountingModulePage';
 import { SacModulePage } from './pages/support/SacModulePage';
 import { MarketingModulePage } from './pages/marketing/MarketingModulePage';
@@ -1745,12 +1746,12 @@ export function App() {
     },
     {
       code: '06',
-      label: 'Comercial / CRM',
-      subtitle: 'Clientes, oportunidades e propostas comerciais',
-      submenus: ['Clientes', 'Oportunidades', 'Propostas comerciais'],
+      label: 'Comercial (DiskIngressos)',
+      subtitle: 'Contratos por evento, produtores e taxas de conveniência',
+      submenus: ['Visão Geral', 'Contratos por Evento', 'Novo Contrato', 'Produtores', 'Pipeline de Captação', 'Relatórios'],
       id: 'crm',
-      badge: `${overview?.crmSummary?.opportunities?.length ?? 0} Deals`,
-      icon: '🚀',
+      badge: 'Contratos & Taxas',
+      icon: '🤝',
     },
     {
       code: '07',
@@ -4818,288 +4819,13 @@ export function App() {
             </div>
           )}
 
-          {/* MÓDULO 06: COMERCIAL / CRM (CLIENTES, OPORTUNIDADES E PROPOSTAS COMERCIAIS) */}
+          {/* MÓDULO 03: COMERCIAL (ERP DISKINGRESSOS) — CONTRATOS, PRODUTORES E TAXAS POR EVENTO */}
           {selectedModuleCode === '06' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Formulários de Nova Proposta e Novo Cliente */}
-                <div className="space-y-6">
-                  <form
-                    onSubmit={handleCreateOpportunity}
-                    className="bg-white rounded-xl border border-slate-200 p-6 space-y-3"
-                  >
-                    <div>
-                      <h2 className="text-base font-bold text-slate-900">
-                        Nova Oportunidade / Proposta Comercial
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        Valida teto de desconto (máx. 30%), limite de crédito do cliente e calcula comissão do executivo
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                        Cliente Corporativo
-                      </label>
-                      <select
-                        value={selectedCustomerId}
-                        onChange={(e) => setSelectedCustomerId(e.target.value)}
-                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-2 bg-slate-50"
-                      >
-                        {overview?.crmSummary?.customers?.map((c: any) => (
-                          <option key={c.id} value={c.id}>
-                            {c.code} — {c.tradeName} (Créd: {formatBRL(c.creditLimit)})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                        Título da Proposta / Escopo
-                      </label>
-                      <input
-                        type="text"
-                        value={oppTitle}
-                        onChange={(e) => setOppTitle(e.target.value)}
-                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                        Executivo de Contas Responsável
-                      </label>
-                      <input
-                        type="text"
-                        value={oppSalesperson}
-                        onChange={(e) => setOppSalesperson(e.target.value)}
-                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                          Valor Bruto (R$)
-                        </label>
-                        <input
-                          type="number"
-                          value={oppGrossAmount}
-                          onChange={(e) => setOppGrossAmount(e.target.value)}
-                          className="w-full text-xs font-mono border border-slate-200 rounded-lg px-2.5 py-1.5"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                          Desconto (R$)
-                        </label>
-                        <input
-                          type="number"
-                          value={oppDiscountAmount}
-                          onChange={(e) => setOppDiscountAmount(e.target.value)}
-                          className="w-full text-xs font-mono border border-slate-200 rounded-lg px-2.5 py-1.5"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                          Comissão (%)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.5"
-                          value={oppCommissionPct}
-                          onChange={(e) => setOppCommissionPct(e.target.value)}
-                          className="w-full text-xs font-mono border border-slate-200 rounded-lg px-2.5 py-1.5"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-2.5 px-4 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold transition"
-                    >
-                      Registrar Proposta no Funil CRM
-                    </button>
-                  </form>
-
-                  <form
-                    onSubmit={handleCreateCustomer}
-                    className="bg-white rounded-xl border border-slate-200 p-6 space-y-3"
-                  >
-                    <div>
-                      <h2 className="text-base font-bold text-slate-900">
-                        Cadastrar Cliente & Limite de Crédito
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        Habilita o cliente para propostas comerciais e faturamento
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                          Código
-                        </label>
-                        <input
-                          type="text"
-                          value={crmCustomerCode}
-                          onChange={(e) => setCrmCustomerCode(e.target.value)}
-                          className="w-full text-xs font-mono border border-slate-200 rounded-lg px-2.5 py-1.5"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                          CNPJ / CPF
-                        </label>
-                        <input
-                          type="text"
-                          value={crmCustomerTaxId}
-                          onChange={(e) => setCrmCustomerTaxId(e.target.value)}
-                          className="w-full text-xs font-mono border border-slate-200 rounded-lg px-2.5 py-1.5"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                        Razão Social / Nome Fantasia
-                      </label>
-                      <input
-                        type="text"
-                        value={crmCustomerName}
-                        onChange={(e) => setCrmCustomerName(e.target.value)}
-                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                        Limite de Crédito Aprovado (R$)
-                      </label>
-                      <input
-                        type="number"
-                        value={crmCustomerCreditLimit}
-                        onChange={(e) => setCrmCustomerCreditLimit(e.target.value)}
-                        className="w-full text-xs font-mono border border-slate-200 rounded-lg px-2.5 py-1.5"
-                        required
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition"
-                    >
-                      Cadastrar Cliente Corporativo
-                    </button>
-                  </form>
-                </div>
-
-                {/* Funil de Oportunidades e Carteira de Clientes */}
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-white rounded-xl border border-slate-200 p-6">
-                    <h2 className="text-base font-bold text-slate-900 mb-3">
-                      Funil de Oportunidades & Fechamento de Contratos (crm_opportunities)
-                    </h2>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="border-b border-slate-200 text-slate-500">
-                            <th className="py-2">Proposta / Cliente</th>
-                            <th className="py-2">Estágio</th>
-                            <th className="py-2 text-right">Valor Líquido</th>
-                            <th className="py-2 text-right">Comissão</th>
-                            <th className="py-2 text-right">Ação Comercial</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {overview?.crmSummary?.opportunities?.map((opp: any) => (
-                            <tr key={opp.id}>
-                              <td className="py-3">
-                                <span className="font-mono font-bold text-blue-700">
-                                  {opp.code}
-                                </span>{' '}
-                                <span className="font-semibold text-slate-800">
-                                  — {opp.customerName}
-                                </span>
-                                <p className="text-slate-600 mt-0.5">{opp.title}</p>
-                                <p className="text-[11px] text-slate-400">
-                                  Executivo: {opp.salespersonName}
-                                </p>
-                              </td>
-                              <td className="py-3">
-                                <span
-                                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                    opp.stage === 'CLOSED_WON'
-                                      ? 'bg-emerald-50 text-emerald-700'
-                                      : 'bg-amber-50 text-amber-700'
-                                  }`}
-                                >
-                                  {opp.stage} ({opp.probabilityPct}%)
-                                </span>
-                              </td>
-                              <td className="py-3 text-right font-mono font-bold tabular-nums text-slate-900">
-                                {formatBRL(opp.netAmount)}
-                              </td>
-                              <td className="py-3 text-right font-mono tabular-nums text-amber-700">
-                                {formatBRL(opp.commissionAmount)} ({opp.commissionRatePct}%)
-                              </td>
-                              <td className="py-3 text-right">
-                                {opp.stage !== 'CLOSED_WON' ? (
-                                  <button
-                                    onClick={() => handleWinOpportunity(opp.id)}
-                                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold transition"
-                                  >
-                                    ✓ Fechar & Faturar
-                                  </button>
-                                ) : (
-                                  <span className="text-[11px] font-mono text-emerald-700 font-semibold">
-                                    Faturado (DRE+Fin)
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-xl border border-slate-200 p-6">
-                    <h2 className="text-base font-bold text-slate-900 mb-3">
-                      Carteira de Clientes & Limites de Crédito (crm_customers)
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {overview?.crmSummary?.customers?.map((c: any) => (
-                        <div
-                          key={c.id}
-                          className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between"
-                        >
-                          <div>
-                            <span className="font-mono font-bold text-xs text-blue-700">
-                              {c.code}
-                            </span>
-                            <p className="text-xs font-bold text-slate-900 mt-0.5">{c.tradeName}</p>
-                            <p className="text-[11px] text-slate-500">CNPJ: {c.taxId}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-[10px] text-slate-500">Limite de Crédito</p>
-                            <p className="text-xs font-mono font-bold text-emerald-700">
-                              {formatBRL(c.creditLimit)}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <CommercialModulePage
+                selectedSubmenu={selectedSubmenu}
+                onNotify={(msg) => setActionMessage({ type: 'success', text: msg })}
+              />
             </div>
           )}
 

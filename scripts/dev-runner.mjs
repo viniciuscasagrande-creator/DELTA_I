@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { spawn } from 'node:child_process';
 
 function runProcess(label, colorCode, command, args) {

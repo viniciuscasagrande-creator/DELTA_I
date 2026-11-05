@@ -59,6 +59,126 @@ export const ERP_MODULES_CATALOG: ErpModuleMetadata[] = [
   { number: 'EXT', code: ErpModuleCode.EVENTS, title: 'Eventos e Bilheteria', area: 'Especializado', phase: 4, description: 'Eventos, lotes, PDV, borderô financeiro, antecipações e repasses' },
 ];
 
+// ============================================================================
+// CATÁLOGO OFICIAL ERP DISKINGRESSOS — 10 MÓDULOS COM AUTONOMIA FUNCIONAL
+// ============================================================================
+
+export enum DiskIngressosModuleCode {
+  EVENTS_REGISTRATION = '01_EVENTOS_CADASTROS',
+  SALES_TICKETING = '02_VENDAS_INGRESSOS',
+  COMMERCIAL = '03_COMERCIAL',
+  FINANCIAL = '04_FINANCEIRO',
+  SAC = '05_SAC',
+  MARKETING = '06_MARKETING',
+  REMARKETING = '07_REMARKETING',
+  POS_BOX_OFFICE = '08_PDV_BILHETERIAS',
+  ACCESS_CONTROL = '09_CONTROLE_ACESSO',
+  BI_REPORTS = '10_BI_RELATORIOS',
+}
+
+export interface DiskIngressosModuleMetadata {
+  number: string;
+  code: DiskIngressosModuleCode;
+  title: string;
+  focus: string;
+  description: string;
+  path: string;
+  primaryRole: string;
+}
+
+export const DISKINGRESSOS_MODULES_CATALOG: DiskIngressosModuleMetadata[] = [
+  {
+    number: '01',
+    code: DiskIngressosModuleCode.EVENTS_REGISTRATION,
+    title: 'Eventos e Cadastros',
+    focus: 'Produtores e eventos',
+    description: 'Gestão completa da grade de shows, organizadores, arenas e configurações base',
+    path: '/modules/events',
+    primaryRole: 'EVENTS_MANAGER',
+  },
+  {
+    number: '02',
+    code: DiskIngressosModuleCode.SALES_TICKETING,
+    title: 'Vendas e Ingressos',
+    focus: 'Site, pedidos e emissão',
+    description: 'Motor de venda online (E-commerce), carrinho, emissão de e-tickets nominais e lotes',
+    path: '/modules/sales',
+    primaryRole: 'SALES_OPERATOR',
+  },
+  {
+    number: '03',
+    code: DiskIngressosModuleCode.COMMERCIAL,
+    title: 'Comercial',
+    focus: 'Contratos e taxas por evento',
+    description: 'Negociação com produtores, contratos, taxas de conveniência e split comercial autônomo',
+    path: '/modules/commercial',
+    primaryRole: 'COMMERCIAL_MANAGER',
+  },
+  {
+    number: '04',
+    code: DiskIngressosModuleCode.FINANCIAL,
+    title: 'Financeiro',
+    focus: 'Receitas, gateways e repasses',
+    description: 'Custódia, conciliação de adquirentes/PIX, split automatizado, borderôs e antecipações',
+    path: '/modules/financial',
+    primaryRole: 'FINANCIAL_DIRECTOR',
+  },
+  {
+    number: '05',
+    code: DiskIngressosModuleCode.SAC,
+    title: 'SAC',
+    focus: 'Chamados, ITIL e SLA',
+    description: 'Service desk omnichannel, matriz de impacto x urgência, KEDB, estornos e mediações',
+    path: '/modules/sac',
+    primaryRole: 'SAC_SUPERVISOR',
+  },
+  {
+    number: '06',
+    code: DiskIngressosModuleCode.MARKETING,
+    title: 'Marketing',
+    focus: 'Ads, UTMs e Analytics',
+    description: 'Campanhas de tráfego (Meta/Google), rastreamento UTM, CAPI, pixels e mensuração de ROAS',
+    path: '/modules/marketing',
+    primaryRole: 'MARKETING_MANAGER',
+  },
+  {
+    number: '07',
+    code: DiskIngressosModuleCode.REMARKETING,
+    title: 'Remarketing',
+    focus: 'Públicos e automações',
+    description: 'Recuperação de carrinhos abandonados, réguas de WhatsApp/SMS/E-mail e segmentação',
+    path: '/modules/remarketing',
+    primaryRole: 'GROWTH_SPECIALIST',
+  },
+  {
+    number: '08',
+    code: DiskIngressosModuleCode.POS_BOX_OFFICE,
+    title: 'PDV e Bilheterias',
+    focus: 'Vendas presenciais',
+    description: 'Terminal de ponto de venda, abertura e fechamento de caixa, sangrias e impressão térmica',
+    path: '/modules/pdv',
+    primaryRole: 'CASHIER_OPERATOR',
+  },
+  {
+    number: '09',
+    code: DiskIngressosModuleCode.ACCESS_CONTROL,
+    title: 'Controle de Acesso',
+    focus: 'QR Code e validação',
+    description: 'Catracas, scanners de QR Code, operação online/offline e monitoramento de lotação em tempo real',
+    path: '/modules/access',
+    primaryRole: 'GATE_SUPERVISOR',
+  },
+  {
+    number: '10',
+    code: DiskIngressosModuleCode.BI_REPORTS,
+    title: 'BI e Relatórios',
+    focus: 'Indicadores executivos',
+    description: 'Painéis C-Level, forecast preditivo, DRE gerencial por evento e métricas consolidadas',
+    path: '/modules/bi',
+    primaryRole: 'EXECUTIVE_VIEWER',
+  },
+];
+
 export interface TenantExecutionContext {
   requestId: string;
   tenantId: string;

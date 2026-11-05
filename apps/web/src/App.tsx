@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { formatBRL } from '@delta-erp/shared';
 import { getFallbackOverview } from './fallback-overview';
+import { FinanceModulePage } from './pages/finance/FinanceModulePage';
+import { AccountingModulePage } from './pages/accounting/AccountingModulePage';
+import { SacModulePage } from './pages/support/SacModulePage';
+import { MarketingModulePage } from './pages/marketing/MarketingModulePage';
 
 const API_BASE =
   (import.meta as any).env?.VITE_API_BASE_URL ||
@@ -3048,6 +3052,63 @@ export function App() {
           {/* MÓDULO 02: FINANCEIRO (CONTAS A PAGAR E RECEBER, BANCOS, CAIXA E TESOURARIA) */}
           {selectedModuleCode === '02' && (
             <div className="space-y-6">
+              <FinanceModulePage
+                selectedSubmenu={selectedSubmenu}
+                titles={[
+                  ...(overview?.payables || []).map((p: any) => ({
+                    id: p.id,
+                    documentNumber: p.documentNumber,
+                    type: 'PAYABLE' as const,
+                    description: p.supplierName || 'Fornecedor Operacional',
+                    dueDate: p.dueDate || new Date().toISOString(),
+                    status: p.status === 'PAID' ? ('PAID' as const) : ('OPEN' as const),
+                    originalAmount: String(p.netAmount || p.grossAmount || 0),
+                    openAmount: p.status === 'PAID' ? '0' : String(p.netAmount || p.grossAmount || 0),
+                  })),
+                  ...(overview?.salesPaymentsSummary?.openReceivables || [
+                    {
+                      id: 'rec-demo-1',
+                      documentNumber: 'CR-PV-2026-0001',
+                      description: 'Faturamento Pedido Enterprise Cloud',
+                      netAmount: 82000,
+                      status: 'OPEN',
+                    },
+                  ]).map((r: any) => ({
+                    id: r.id,
+                    documentNumber: r.documentNumber,
+                    type: 'RECEIVABLE' as const,
+                    description: r.description || 'Cliente Faturamento B2B',
+                    dueDate: new Date().toISOString(),
+                    status: r.status === 'OPEN' ? ('OPEN' as const) : ('PAID' as const),
+                    originalAmount: String(r.netAmount || 0),
+                    openAmount: r.status === 'OPEN' ? String(r.netAmount || 0) : '0',
+                  })),
+                ]}
+                bankAccounts={(overview?.cashFlow?.bankAccounts || []).map((b: any) => ({
+                  id: b.id,
+                  code: `BNK-${b.bankCode}`,
+                  name: b.name,
+                  bankCode: b.bankCode,
+                  branchNumber: b.agencyNumber || '0001',
+                  accountNumber: b.accountNumber || '10948-2',
+                  currentBalance: String(b.currentBalance || 0),
+                }))}
+                finDocumentNumber={`DOC-${Math.floor(1000 + Math.random() * 9000)}`}
+                setFinDocumentNumber={() => undefined}
+                finType="PAYABLE"
+                setFinType={() => undefined}
+                finDescription={supplierName}
+                setFinDescription={setSupplierName}
+                finDueDate="2026-11-30"
+                setFinDueDate={() => undefined}
+                finAmount={grossAmount}
+                setFinAmount={setGrossAmount}
+                selectedBankAccountId={overview?.cashFlow?.bankAccounts?.[0]?.id || 'bank-1'}
+                setSelectedBankAccountId={() => undefined}
+                onCreateTitle={handleCreatePayable}
+                onSettleTitle={handleSettlePayable}
+                onNotify={(msg) => setActionMessage({ type: 'success', text: msg })}
+              />
               {/* Contas Bancárias, Caixa & Tesouraria */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {overview?.cashFlow?.bankAccounts?.map((bank: any) => (
@@ -3312,6 +3373,10 @@ export function App() {
           {/* MÓDULO 03: CONTABILIDADE (PLANO DE CONTAS, LANÇAMENTOS, RAZÃO, BALANCETE E DRE) */}
           {selectedModuleCode === '03' && (
             <div className="space-y-6">
+              <AccountingModulePage
+                selectedSubmenu={selectedSubmenu}
+                onNotify={(msg) => setActionMessage({ type: 'success', text: msg })}
+              />
               {/* Resumo DRE */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white p-5 rounded-xl border border-slate-200">
@@ -6008,6 +6073,37 @@ export function App() {
           {/* MÓDULO 13: SAC (CHAMADOS, ATENDIMENTO, PRAZOS, ESTORNOS E REEMBOLSOS) */}
           {selectedModuleCode === '13' && (
             <div className="space-y-6">
+              <SacModulePage
+                selectedSubmenu={selectedSubmenu}
+                sacTickets={(overview?.enterpriseOpsSummary?.tickets || []).map((t: any) => ({
+                  id: t.id,
+                  protocol: t.protocolNumber || 'SAC-2026-0001',
+                  customerName: t.customerName || 'Cliente Enterprise',
+                  channel: 'WHATSAPP' as const,
+                  category: 'ESTORNO_REEMBOLSO' as const,
+                  slaHours: Number(t.slaTargetHours || 4),
+                  elapsedHours: Number(t.elapsedHours || 1),
+                  refundRequestedAmount: String(t.refundRequested || 0),
+                  status:
+                    t.status === 'REFUNDED_CLOSED'
+                      ? ('REFUND_APPROVED' as const)
+                      : ('OPEN' as const),
+                  createdAt: new Date().toISOString(),
+                }))}
+                sacCustomerName={newTicketCustomer}
+                setSacCustomerName={setNewTicketCustomer}
+                sacChannel="WHATSAPP"
+                setSacChannel={(ch) => setNewTicketChannel(ch as any)}
+                sacCategory="ESTORNO_REEMBOLSO"
+                setSacCategory={(cat) => setNewTicketSubject(cat)}
+                sacSlaHours={newTicketSlaHours}
+                setSacSlaHours={setNewTicketSlaHours}
+                sacRefundAmount={newTicketRefundReq}
+                setSacRefundAmount={setNewTicketRefundReq}
+                onCreateTicket={handleCreateSacTicket}
+                onApproveRefund={handleApproveSacRefund}
+                onNotify={(msg) => setActionMessage({ type: 'success', text: msg })}
+              />
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-xl border border-slate-200 p-5">
                   <p className="text-xs font-medium text-slate-500">Chamados em Atendimento (SLA)</p>
@@ -6188,6 +6284,44 @@ export function App() {
           {/* MÓDULO 14: MARKETING (CAMPANHAS, CUPONS, CONVERSÕES E INTEGRAÇÕES DE MÍDIA) */}
           {selectedModuleCode === '14' && (
             <div className="space-y-6">
+              <MarketingModulePage
+                selectedSubmenu={selectedSubmenu}
+                marketingCampaigns={(overview?.enterpriseOpsSummary?.campaigns || []).map((c: any) => ({
+                  id: c.id,
+                  name: c.name,
+                  channel: (c.channel || 'META_ADS') as any,
+                  couponCode: c.couponCode || 'DELTA20',
+                  discountPercent: Number(c.discountPct || 15),
+                  budgetAmount: String((Number(c.budgetSpent || 10000) * 1.4).toFixed(2)),
+                  spentAmount: String(c.budgetSpent || 10000),
+                  AttributedRevenue: String(c.attributedRevenue || 85000),
+                  conversions: Number(c.conversionsCount || 42),
+                  status: 'ACTIVE' as const,
+                }))}
+                mediaIntegrations={mediaIntegrations.map((mi) => ({
+                  id: mi.id,
+                  platform: mi.platform,
+                  accountId: mi.pixelId,
+                  pixelOrTagId: mi.pixelId,
+                  status: 'CONNECTED' as const,
+                  lastSyncAt: mi.lastSync,
+                  roas: `${mi.roas}x`,
+                }))}
+                mktCampaignName={newCampaignName}
+                setMktCampaignName={setNewCampaignName}
+                mktChannel="META_ADS"
+                setMktChannel={(ch) => setNewCampaignChannel(ch as any)}
+                mktCouponCode={newCampaignCoupon}
+                setMktCouponCode={setNewCampaignCoupon}
+                mktDiscountPercent={newCampaignDiscountPct}
+                setMktDiscountPercent={setNewCampaignDiscountPct}
+                mktBudgetAmount={newCampaignBudget}
+                setMktBudgetAmount={setNewCampaignBudget}
+                onCreateCampaign={handleCreateMarketingCampaign}
+                onRecordConversion={handleRecordMarketingConversion}
+                onSyncIntegration={handleSyncMediaIntegration}
+                onNotify={(msg) => setActionMessage({ type: 'success', text: msg })}
+              />
               {/* KPIs Exclusivos de Marketing, Performance & Atribuição */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-xl border border-slate-200 p-5">

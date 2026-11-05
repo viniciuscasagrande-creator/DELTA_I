@@ -6,6 +6,7 @@ import { CommercialModulePage } from './pages/commercial/CommercialModulePage';
 import { AccountingModulePage } from './pages/accounting/AccountingModulePage';
 import { SacModulePage } from './pages/support/SacModulePage';
 import { MarketingModulePage } from './pages/marketing/MarketingModulePage';
+import { EventsModulePage } from './pages/events/EventsModulePage';
 
 const API_BASE =
   (import.meta as any).env?.VITE_API_BASE_URL ||
@@ -1854,15 +1855,15 @@ export function App() {
     },
     {
       code: '18',
-      label: 'Portal Externo',
-      subtitle: 'Áreas de clientes, fornecedores e parceiros',
-      submenus: ['Áreas de clientes', 'Fornecedores', 'Parceiros'],
+      label: 'Eventos & Ingressos',
+      subtitle: 'Grade de shows, 4 dimensões de estado e ingressos 8 dígitos',
+      submenus: ['Catálogo de Eventos', 'Matriz das 4 Dimensões', 'Ingressos Emitidos (8 Dígitos)', 'Setores & Inventário', 'Novo Evento'],
       id: 'events',
-      badge: 'B2B/B2C',
-      icon: '🌐',
+      badge: 'DiskIngressos',
+      icon: '🎟️',
       onSelect: (sub) => {
         setSelectedModuleCode('18');
-        setSelectedSubmenu(sub || 'Áreas de clientes');
+        setSelectedSubmenu(sub || 'Catálogo de Eventos');
         setActiveTab('events');
       },
     },
@@ -6629,229 +6630,13 @@ export function App() {
             </div>
           )}
 
-          {/* MÓDULO 18: PORTAL EXTERNO (ÁREAS DE CLIENTES, FORNECEDORES E PARCEIROS) */}
+          {/* MÓDULO 01 & 02: EVENTOS E INGRESSOS (ERP DISKINGRESSOS) */}
           {selectedModuleCode === '18' && (
             <div className="space-y-6">
-              {/* Áreas de Clientes e Fornecedores B2B */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-base font-bold text-slate-900">
-                        Área do Cliente B2B (Autoatendimento, 2ª Via PIX/Boleto, NF-e & Contratos)
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        Visão externa autenticada para clientes consultarem faturas, contratos e chamados SAC
-                      </p>
-                    </div>
-                    <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Portal Ativo
-                    </span>
-                  </div>
-                  <div className="space-y-2.5 text-xs">
-                    {(overview?.crmSummary?.customers || []).map((c: any) => (
-                      <div key={c.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                        <div>
-                          <span className="font-mono font-bold text-blue-700">{c.code}</span> —{' '}
-                          <span className="font-bold text-slate-900">{c.tradeName}</span>
-                          <p className="text-[11px] text-slate-500">CNPJ: {c.taxId} • E-mail: {c.email}</p>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-mono font-semibold text-[11px]">
-                          Acesso Liberado
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-base font-bold text-slate-900">
-                        Portal do Fornecedor Homologado (Cotações RFQ, Pedidos PO & Upload XML NF-e)
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        Canal externo para resposta de mapa de cotações, acompanhamento de POs e envio de DANFE/XML
-                      </p>
-                    </div>
-                    <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                      EDI / XML Ativo
-                    </span>
-                  </div>
-                  <div className="space-y-2.5 text-xs">
-                    {(overview?.purchasingSummary?.suppliers || []).map((s: any) => (
-                      <div key={s.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                        <div>
-                          <span className="font-mono font-bold text-blue-700">{s.code}</span> —{' '}
-                          <span className="font-bold text-slate-900">{s.tradeName}</span>
-                          <p className="text-[11px] text-slate-500">
-                            CNPJ: {s.taxId} • Score SLA: {s.ratingScore}/10
-                          </p>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-mono font-semibold text-[11px]">
-                          Homologado ISO
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Portal de Parceiros & Produtores (Borderô de Eventos & Repasse PIX) */}
-              {overview?.eventsList?.map((evt: any) => (
-                <div key={evt.id} className="bg-white rounded-xl border border-slate-200 p-6 space-y-6">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-blue-50 text-blue-700">
-                          PARCEIRO / PRODUTOR • {evt.code}
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
-                          {evt.status}
-                        </span>
-                      </div>
-                      <h2 className="text-lg font-bold text-slate-900 mt-1">{evt.title}</h2>
-                      <p className="text-xs text-slate-500">
-                        Parceiro: <strong>{evt.producer?.legalName}</strong> (CNPJ: {evt.producer?.taxId} • PIX:{' '}
-                        {evt.producer?.pixKeyForPayout})
-                      </p>
-                    </div>
-
-                    <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-4 text-right">
-                      <p className="text-xs font-medium text-blue-800">
-                        Saldo Líquido Disponível ao Parceiro (Borderô)
-                      </p>
-                      <p className="text-2xl font-bold font-mono text-blue-900 tabular-nums mt-0.5">
-                        {formatBRL(evt.availableBalance)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                      <p className="text-[11px] text-slate-500">Vendas Valor de Face (Custódia)</p>
-                      <p className="text-sm font-bold font-mono text-slate-900 mt-1">
-                        {formatBRL(evt.grossTicketSales)}
-                      </p>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
-                      <p className="text-[11px] text-emerald-800">Taxas de Conveniência (Receita ERP)</p>
-                      <p className="text-sm font-bold font-mono text-emerald-900 mt-1">
-                        {formatBRL(evt.totalServiceFees)}
-                      </p>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                      <p className="text-[11px] text-slate-500">Taxas de Adquirência (MDR/PIX)</p>
-                      <p className="text-sm font-bold font-mono text-rose-700 mt-1">
-                        - {formatBRL(evt.totalAcquirerFees)}
-                      </p>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                      <p className="text-[11px] text-slate-500">Antecipações Realizadas</p>
-                      <p className="text-sm font-bold font-mono text-amber-700 mt-1">
-                        - {formatBRL(evt.totalAdvanced)}
-                      </p>
-                    </div>
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                      <p className="text-[11px] text-slate-500">Repasses Liquidados</p>
-                      <p className="text-sm font-bold font-mono text-slate-800 mt-1">
-                        - {formatBRL(evt.totalPaidOut)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-900">
-                          Lotes de Ingressos & Split Contábil Automático
-                        </h3>
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <span>Qtd:</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={20}
-                            value={ticketQuantity}
-                            onChange={(e) => setTicketQuantity(e.target.value)}
-                            className="w-16 border border-slate-200 rounded px-2 py-1 font-mono text-xs"
-                          />
-                        </div>
-                      </div>
-                      {evt.ticketBatches?.map((batch: any) => (
-                        <div
-                          key={batch.id}
-                          className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between"
-                        >
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-900">{batch.name}</h4>
-                            <p className="text-xs font-mono text-slate-600 mt-0.5">
-                              Face: {formatBRL(batch.faceValue)} + Taxa: {formatBRL(batch.serviceFee)}
-                            </p>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
-                              Vendidos: {batch.soldQuantity} / {batch.totalQuota}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => handleRecordTicketSale(evt.id, batch.id)}
-                            className="px-3 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold"
-                          >
-                            + Vender {ticketQuantity}x (PIX)
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 space-y-4">
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900">
-                          Portal do Parceiro — Solicitar Repasse ou Antecipação PIX
-                        </h3>
-                        <p className="text-xs text-slate-500">
-                          Gera título em Contas a Pagar e instância no Motor de Workflow (Módulo 17)
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-slate-700 mb-1">
-                            Valor Solicitado (R$)
-                          </label>
-                          <input
-                            type="number"
-                            step="100"
-                            value={payoutAmount}
-                            onChange={(e) => setPayoutAmount(e.target.value)}
-                            className="w-full text-xs font-mono border border-slate-200 rounded-lg px-3 py-2 bg-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-700 mb-1">
-                            Modalidade
-                          </label>
-                          <select
-                            value={isAdvancePayout ? 'ADVANCE' : 'REGULAR'}
-                            onChange={(e) => setIsAdvancePayout(e.target.value === 'ADVANCE')}
-                            className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white"
-                          >
-                            <option value="ADVANCE">
-                              Antecipação (Taxa {evt.producer?.advanceFeePct}%)
-                            </option>
-                            <option value="REGULAR">Repasse Regular Pós-Evento (0%)</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => handleRequestProducerPayout(evt.id)}
-                        className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition"
-                      >
-                        Solicitar Transferência PIX ao Parceiro
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+              <EventsModulePage
+                selectedSubmenu={selectedSubmenu}
+                onNotify={(msg) => setActionMessage({ type: 'success', text: msg })}
+              />
             </div>
           )}
 

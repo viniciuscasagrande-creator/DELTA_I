@@ -1,4 +1,16 @@
-import { ErpModuleCode, roundCurrency, TenantExecutionContext } from '@delta-erp/shared';
+import {
+  ErpModuleCode,
+  roundCurrency,
+  TenantExecutionContext,
+  EventApprovalStatus,
+  EventPublicationStatus,
+  EventSalesStatus,
+  EventRealizationStatus,
+  DiskIngressosEventState,
+  formatTicketNumber,
+  DiskIngressosTicketItem,
+} from '@delta-erp/shared';
+import crypto from 'node:crypto';
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 
@@ -28,6 +40,91 @@ export class EventsService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService
   ) {}
+
+  /**
+   * Validação estrita das 4 dimensões de estados do evento:
+   * 1. Vendas NÃO podem ser abertas se a aprovação não for 'APPROVED'.
+   * 2. Evento não pode ser publicado na vitrine se o status de aprovação for 'REJECTED'.
+   * 3. Evento com realização 'CANCELLED' força vendas para 'CLOSED'.
+   */
+  static validateStateTransition(
+    current: DiskIngressosEventState,
+    updates: Partial<DiskIngressosEventState>
+  ): DiskIngressosEventState {
+    const next: DiskIngressosEventState = { ...current, ...updates };
+
+    if (next.salesStatus === EventSalesStatus.OPEN && next.approvalStatus !== EventApprovalStatus.APPROVED) {
+      throw new Error(
+        'EVENT_SALES_NOT_ALLOWED: Vendas não podem ser abertas antes da aprovação/homologação do evento pela curadoria.'
+      );
+    }
+
+    if (next.publicationStatus === EventPublicationStatus.PUBLISHED && next.approvalStatus === EventApprovalStatus.REJECTED) {
+      throw new Error('EVENT_CANNOT_PUBLISH_REJECTED: Evento rejeitado não pode ser publicado na vitrine.');
+    }
+
+    if (next.realizationStatus === EventRealizationStatus.CANCELLED) {
+      next.salesStatus = EventSalesStatus.CLOSED;
+    }
+
+    return next;
+  }
+
+  /**
+   * Emissão de Ingressos com formato inegociável de 8 dígitos numéricos
+   * e credencial criptográfica segura desacoplada (HMAC-SHA256) para a catraca.
+   */
+  static generateTickets(params: {
+    eventId: string;
+    eventName: string;
+    batchId: string;
+    batchName: string;
+    sectorName: string;
+    quantity: number;
+    faceValue: number;
+    convenienceFeeValue: number;
+    buyerName: string;
+    buyerTaxId: string;
+    buyerEmail: string;
+    paymentMethod: 'PIX' | 'CREDIT_CARD' | 'CASH_PDV';
+    startSequenceNumber: number;
+    hmacSecret?: string;
+  }): DiskIngressosTicketItem[] {
+    const secret = params.hmacSecret || process.env.ENCRYPTION_KEY || 'diskingressos-secret-key-2026';
+    const tickets: DiskIngressosTicketItem[] = [];
+    const issuedAt = new Date().toISOString();
+
+    for (let i = 0; i < params.quantity; i++) {
+      const sequence = params.startSequenceNumber + i;
+      const ticketNumber = formatTicketNumber(sequence);
+
+      // Credencial segura desacoplada para validação na catraca
+      const rawPayload = `${params.eventId}:${ticketNumber}:${params.buyerTaxId}:${issuedAt}`;
+      const validationHash = crypto.createHmac('sha256', secret).update(rawPayload).digest('hex');
+
+      tickets.push({
+        id: `tkt_${params.eventId}_${ticketNumber}`,
+        eventId: params.eventId,
+        eventName: params.eventName,
+        batchId: params.batchId,
+        batchName: params.batchName,
+        sectorName: params.sectorName,
+        ticketNumber,
+        validationHash,
+        faceValue: params.faceValue,
+        convenienceFeeValue: params.convenienceFeeValue,
+        totalPaid: roundCurrency(params.faceValue + params.convenienceFeeValue),
+        buyerName: params.buyerName,
+        buyerTaxId: params.buyerTaxId,
+        buyerEmail: params.buyerEmail,
+        paymentMethod: params.paymentMethod,
+        status: 'ISSUED',
+        issuedAt,
+      });
+    }
+
+    return tickets;
+  }
 
   /**
    * Calcula o saldo líquido disponível para repasse ao produtor de um evento

@@ -221,3 +221,76 @@ export function formatBRL(value: number): string {
     currency: 'BRL',
   }).format(value);
 }
+
+// ============================================================================
+// AS 4 DIMENSÕES DE ESTADOS DO EVENTO (ERP DISKINGRESSOS)
+// ============================================================================
+
+export enum EventApprovalStatus {
+  DRAFT = 'DRAFT',
+  UNDER_REVIEW = 'UNDER_REVIEW',
+  PENDING_CORRECTION = 'PENDING_CORRECTION',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
+export enum EventPublicationStatus {
+  UNPUBLISHED = 'UNPUBLISHED',
+  PUBLISHED = 'PUBLISHED',
+  WITHDRAWN = 'WITHDRAWN',
+}
+
+export enum EventSalesStatus {
+  NOT_OPEN = 'NOT_OPEN',
+  OPEN = 'OPEN',
+  SUSPENDED = 'SUSPENDED',
+  CLOSED = 'CLOSED',
+}
+
+export enum EventRealizationStatus {
+  SCHEDULED = 'SCHEDULED',
+  COMPLETED = 'COMPLETED',
+  POSTPONED = 'POSTPONED',
+  CANCELLED = 'CANCELLED',
+}
+
+export interface DiskIngressosEventState {
+  approvalStatus: EventApprovalStatus;
+  publicationStatus: EventPublicationStatus;
+  salesStatus: EventSalesStatus;
+  realizationStatus: EventRealizationStatus;
+}
+
+/**
+ * Formata o número do ingresso garantindo EXATAMENTE 8 caracteres numéricos
+ * com zeros à esquerda preservados (ex: 1 -> "00000001", 45821 -> "00045821").
+ * Essa regra é inegociável em todas as interfaces, PDFs, e-mails e relatórios.
+ */
+export function formatTicketNumber(value: number | string): string {
+  const numericOnly = String(value ?? '').replace(/\D/g, '');
+  if (!numericOnly) return '00000000';
+  return numericOnly.padStart(8, '0').slice(-8);
+}
+
+export interface DiskIngressosTicketItem {
+  id: string;
+  eventId: string;
+  eventName: string;
+  batchId: string;
+  batchName: string;
+  sectorName: string;
+  ticketNumber: string; // Exatamente 8 caracteres numéricos
+  validationHash: string; // Hash criptográfico seguro para o QR Code
+  faceValue: number;
+  convenienceFeeValue: number;
+  totalPaid: number;
+  buyerName: string;
+  buyerTaxId: string;
+  buyerEmail: string;
+  paymentMethod: 'PIX' | 'CREDIT_CARD' | 'CASH_PDV';
+  status: 'RESERVED' | 'ISSUED' | 'USED' | 'CANCELLED' | 'REFUNDED';
+  issuedAt: string;
+  validatedAt?: string;
+  validatedByGate?: string;
+}
+

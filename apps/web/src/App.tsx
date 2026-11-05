@@ -116,9 +116,9 @@ export function App() {
   const [workflowNotes] = useState('Aprovado conforme orçamento da diretoria');
 
   // Events & Producer Portal form state
-  const [ticketQuantity, setTicketQuantity] = useState('4');
-  const [payoutAmount, setPayoutAmount] = useState('25000');
-  const [isAdvancePayout, setIsAdvancePayout] = useState(true);
+  const [ticketQuantity] = useState('4');
+  const [payoutAmount] = useState('25000');
+  const [isAdvancePayout] = useState(true);
 
   // Módulo 04 Fiscal & Tributário form state
   const [selectedTaxRuleId, setSelectedTaxRuleId] = useState<string>('');
@@ -140,16 +140,16 @@ export function App() {
 
   // Módulo 06 Comercial & CRM form state
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-  const [crmCustomerCode, setCrmCustomerCode] = useState('CLI-0005');
-  const [crmCustomerName, setCrmCustomerName] = useState('Hospitalar Santa Clara S.A.');
-  const [crmCustomerTaxId, setCrmCustomerTaxId] = useState('54.321.987/0001-65');
-  const [crmCustomerCreditLimit, setCrmCustomerCreditLimit] = useState('450000');
+  const [crmCustomerCode] = useState('CLI-0005');
+  const [crmCustomerName] = useState('Hospitalar Santa Clara S.A.');
+  const [crmCustomerTaxId] = useState('54.321.987/0001-65');
+  const [crmCustomerCreditLimit] = useState('450000');
 
-  const [oppTitle, setOppTitle] = useState('Suite ERP Cloud + Módulo Contábil/Fiscal Multi-Unidades');
-  const [oppSalesperson, setOppSalesperson] = useState('Henrique Vasconcelos — Executivo Enterprise');
-  const [oppGrossAmount, setOppGrossAmount] = useState('120000');
-  const [oppDiscountAmount, setOppDiscountAmount] = useState('10000');
-  const [oppCommissionPct, setOppCommissionPct] = useState('5');
+  const [oppTitle] = useState('Suite ERP Cloud + Módulo Contábil/Fiscal Multi-Unidades');
+  const [oppSalesperson] = useState('Henrique Vasconcelos — Executivo Enterprise');
+  const [oppGrossAmount] = useState('120000');
+  const [oppDiscountAmount] = useState('10000');
+  const [oppCommissionPct] = useState('5');
 
   // Módulo 07 Compras & Suprimentos form state
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
@@ -783,7 +783,7 @@ export function App() {
   };
 
   // 5. Events & Producer Portal Handlers
-  const handleRecordTicketSale = async (eventId: string, ticketBatchId: string) => {
+  const _handleRecordTicketSale = async (eventId: string, ticketBatchId: string) => {
     setActionMessage(null);
     try {
       const res = await fetch(`${API_BASE}/events/${eventId}/ticket-sales`, {
@@ -813,7 +813,7 @@ export function App() {
     }
   };
 
-  const handleRequestProducerPayout = async (eventId: string) => {
+  const _handleRequestProducerPayout = async (eventId: string) => {
     setActionMessage(null);
     try {
       const res = await fetch(`${API_BASE}/events/${eventId}/payout-requests`, {
@@ -941,7 +941,7 @@ export function App() {
   };
 
   // 8. Módulo 06 Comercial & CRM Handlers
-  const handleCreateCustomer = async (e: React.FormEvent) => {
+  const _handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionMessage(null);
     try {
@@ -975,7 +975,7 @@ export function App() {
     }
   };
 
-  const handleCreateOpportunity = async (e: React.FormEvent) => {
+  const _handleCreateOpportunity = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionMessage(null);
     const customerId = selectedCustomerId || overview?.crmSummary?.customers?.[0]?.id;
@@ -1012,7 +1012,7 @@ export function App() {
     }
   };
 
-  const handleWinOpportunity = async (oppId: string) => {
+  const _handleWinOpportunity = async (oppId: string) => {
     setActionMessage(null);
     try {
       const res = await fetch(`${API_BASE}/crm/opportunities/${oppId}/win`, {
@@ -1036,6 +1036,11 @@ export function App() {
       setActionMessage({ type: 'error', text: err.message });
     }
   };
+  void _handleRecordTicketSale;
+  void _handleRequestProducerPayout;
+  void _handleCreateCustomer;
+  void _handleCreateOpportunity;
+  void _handleWinOpportunity;
 
   // 9. Módulo 07 Compras & Suprimentos Handlers
   const handleCreateSupplier = async (e: React.FormEvent) => {
@@ -1855,15 +1860,30 @@ export function App() {
     },
     {
       code: '18',
-      label: 'Eventos & Ingressos',
-      subtitle: 'Grade de shows, 4 dimensões de estado e ingressos 8 dígitos',
-      submenus: ['Catálogo de Eventos', 'Matriz das 4 Dimensões', 'Ingressos Emitidos (8 Dígitos)', 'Setores & Inventário', 'Novo Evento'],
+      label: 'Operação de Eventos (DELDA_1)',
+      subtitle: 'Central de Operação Ponta a Ponta (STE.PO.001/002/003, STE.IT.001, Anexo 1)',
+      submenus: [
+        '1. Painel Operacional',
+        '2. Solicitações de Eventos',
+        '3. Montagem e Cadastro',
+        '4. Conferência e Aprovação',
+        '5. Publicação e Canais',
+        '6. Setores, Mapas e Bloqueios',
+        '7. Lotes e Preços',
+        '8. Cortesias e Recibos',
+        '9. Bilheteria e Validação',
+        '10. Alterações Críticas',
+        '11. Comunicados e Disparos',
+        '12. Ocorrências e Suporte',
+        '13. Dossiê do Evento',
+        '14. Relatórios e Auditoria',
+      ],
       id: 'events',
-      badge: 'DiskIngressos',
+      badge: '14 Submenus',
       icon: '🎟️',
       onSelect: (sub) => {
         setSelectedModuleCode('18');
-        setSelectedSubmenu(sub || 'Catálogo de Eventos');
+        setSelectedSubmenu(sub || '1. Painel Operacional');
         setActiveTab('events');
       },
     },

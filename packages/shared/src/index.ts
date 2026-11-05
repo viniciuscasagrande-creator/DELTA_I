@@ -279,6 +279,8 @@ export interface DiskIngressosTicketItem {
   batchId: string;
   batchName: string;
   sectorName: string;
+  seatId?: string;
+  seatCode?: string;
   ticketNumber: string; // Exatamente 8 caracteres numéricos
   validationHash: string; // Hash criptográfico seguro para o QR Code
   faceValue: number;
@@ -287,10 +289,377 @@ export interface DiskIngressosTicketItem {
   buyerName: string;
   buyerTaxId: string;
   buyerEmail: string;
+  buyerPhone?: string;
   paymentMethod: 'PIX' | 'CREDIT_CARD' | 'CASH_PDV';
+  salesChannel?: SalesChannelType;
+  isCourtesy?: boolean;
+  courtesyBatchId?: string;
   status: 'RESERVED' | 'ISSUED' | 'USED' | 'CANCELLED' | 'REFUNDED';
   issuedAt: string;
   validatedAt?: string;
   validatedByGate?: string;
 }
+
+// ============================================================================
+// PLATAFORMA OPERACIONAL DE EVENTOS PONTA A PONTA (PACOTES 01 A 07 — STE.PO / STE.IT)
+// ============================================================================
+
+/**
+ * Fluxo Obrigatório de Abertura e Operação (STE.PO.001 / Seção 5.1)
+ */
+export enum EventOperationalStage {
+  RASCUNHO = 'RASCUNHO',
+  AGUARDANDO_INFORMACOES = 'AGUARDANDO_INFORMACOES',
+  EM_MONTAGEM = 'EM_MONTAGEM',
+  EM_CONFERENCIA = 'EM_CONFERENCIA',
+  AGUARDANDO_PRODUTOR = 'AGUARDANDO_PRODUTOR',
+  APROVADO = 'APROVADO',
+  AGENDADO = 'AGENDADO',
+  PUBLICADO = 'PUBLICADO',
+  EM_OPERACAO = 'EM_OPERACAO',
+  ENCERRADO = 'ENCERRADO',
+}
+
+/**
+ * Estados de Assento / Lugar Separados (STE.IT.001 / Seção 5.2)
+ */
+export enum EventSeatStatus {
+  DISPONIVEL = 'DISPONIVEL',
+  RESERVADO_TEMPORARIAMENTE = 'RESERVADO_TEMPORARIAMENTE',
+  BLOQUEADO = 'BLOQUEADO',
+  VENDIDO = 'VENDIDO',
+  UTILIZADO = 'UTILIZADO',
+  INATIVO = 'INATIVO',
+}
+
+export type SalesChannelType = 'SITE' | 'APP' | 'PDV' | 'PARTNER_API' | 'RESTRICTED_LINK';
+
+/**
+ * Perguntas Obrigatórias de Bloqueios antes de liberar vendas (STE.IT.001, p. 8)
+ */
+export interface EventMandatoryBlockQuestions {
+  hasTechnicalProductionBlocks: 'SIM' | 'NAO' | null;
+  technicalProductionBlocksDetail?: string;
+  hasVenueContractualCourtesyBlocks: 'SIM' | 'NAO' | null;
+  venueContractualCourtesyBlocksDetail?: string;
+  answeredByUserId?: string;
+  answeredAt?: string;
+}
+
+/**
+ * Conferência Independente por 2 pessoas distintas do montador (STE.PO.001, p. 3)
+ */
+export interface EventIndependentReview {
+  id: string;
+  eventId: string;
+  revisionVersion: number;
+  revisionHash: string;
+  reviewerOrder: 1 | 2;
+  reviewerUserId: string;
+  reviewerName: string;
+  reviewerRole: string;
+  sectorsVerified: boolean;
+  pricesAndFeesVerified: boolean;
+  halfPriceRulesVerified: boolean;
+  channelsAndPosVerified: boolean;
+  blockQuestionsVerified: boolean;
+  decision: 'APPROVED' | 'REJECTED';
+  notes?: string;
+  signedAt: string;
+  signatureHash: string;
+}
+
+/**
+ * Aceite Explícito do Produtor vinculado à versão/hash exato da montagem
+ */
+export interface EventProducerApproval {
+  id: string;
+  eventId: string;
+  producerId: string;
+  producerUserName: string;
+  revisionVersion: number;
+  revisionHash: string;
+  decision: 'APPROVED' | 'CORRECTION_REQUESTED';
+  notes?: string;
+  decidedAt: string;
+  evidenceHash: string;
+}
+
+/**
+ * Revisão Versionada da Montagem (Qualquer alteração material incrementa versão e invalida aprovações anteriores)
+ */
+export interface EventRevisionRecord {
+  version: number;
+  snapshotHash: string;
+  assembledByUserId: string;
+  assembledByName: string;
+  reason: string;
+  createdAt: string;
+  materialFieldsSnapshot: {
+    title: string;
+    venueName: string;
+    startsAt: string;
+    endsAt: string;
+    declaredCapacity: number;
+    sectorsTotalCapacity: number;
+    serviceFeePct: number;
+  };
+}
+
+/**
+ * Solicitação de Abertura / Intake do Evento (STE.PO.001)
+ */
+export interface EventIntakeRecord {
+  id: string;
+  code: string;
+  eventId?: string;
+  producerId: string;
+  producerName: string;
+  originChannel: 'PORTAL_PRODUTOR' | 'COMERCIAL' | 'EMAIL' | 'WHATSAPP_CORPORATIVO';
+  requestedByName: string;
+  eventTitle: string;
+  venueName: string;
+  cityState: string;
+  proposedStartDate: string;
+  declaredCapacity: number;
+  hasVenueAuthorizationDoc: boolean;
+  hasCommercialContractApproved: boolean;
+  commercialFeePct: number;
+  courtesyPrintingFeePerUnit: number;
+  pendingItems: string[];
+  status: 'RECEBIDO' | 'PENDENTE_DADOS' | 'EM_MONTAGEM' | 'HOMOLOGADO';
+  createdAt: string;
+}
+
+/**
+ * Bloqueio de Assentos / Setor (STE.PO.003)
+ */
+export interface EventSeatBlockRecord {
+  id: string;
+  eventId: string;
+  sectorId: string;
+  sectorName: string;
+  blockType: 'TECNICO_PRODUCAO' | 'CORTESIA_CONTRATUAL_ESPACO' | 'RESERVA_PATROCINADOR';
+  origin: string;
+  reason: string;
+  quantity: number;
+  seatCodes: string[];
+  responsibleUserId: string;
+  responsibleName: string;
+  reviewDeadline: string;
+  status: 'ATIVO' | 'LIBERADO_PARA_VENDA' | 'CONVERTIDO_EM_CORTESIA';
+  createdAt: string;
+  releasedAt?: string;
+  releasedByUserId?: string;
+}
+
+/**
+ * Emissão de Cortesias e Recibo Digital Vinculado ao Borderô (STE.PO.003 / Anexo 1)
+ */
+export interface TicketCourtesyBatchRecord {
+  id: string;
+  eventId: string;
+  sectorId: string;
+  sectorName: string;
+  category: 'CORTESIA_NAO_COMERCIALIZAVEL';
+  recipientName: string;
+  recipientTaxId?: string;
+  quantity: number;
+  ticketNumbers: string[]; // Todos com 8 dígitos numéricos
+  deliveryMode: 'IMPRESSO_FISICO' | 'E_TICKET_PDF';
+  unitPrintingFee: number; // Derivado do contrato vigente do evento
+  totalPrintingDebit: number;
+  issuedByUserId: string;
+  issuedByName: string;
+  issuedAt: string;
+  receipt?: TicketReceiptRecord;
+}
+
+export interface TicketReceiptRecord {
+  id: string;
+  receiptCode: string; // Anexo 1 - Recibo de Ingressos
+  courtesyBatchId: string;
+  eventId: string;
+  producerId: string;
+  quantity: number;
+  ticketRange: string;
+  printingDebitForBordeau: number;
+  issuerUserId: string;
+  issuerName: string;
+  receiverName: string;
+  receiverDocument: string;
+  signedAt: string;
+  signatureHash: string;
+  linkedToBordeau: boolean;
+}
+
+/**
+ * Virada Atômica de Lote com Auditoria (STE.PO.003, p. 3)
+ */
+export interface LotTransitionRecord {
+  id: string;
+  eventId: string;
+  sectorId: string;
+  sectorName: string;
+  closedLotId: string;
+  closedLotName: string;
+  previousFacePrice: number;
+  openedLotId: string;
+  openedLotName: string;
+  newFacePrice: number;
+  triggerType: 'QUANTIDADE_ESGOTADA' | 'DATA_PROGRAMADA' | 'MANUAL_SUPORTE';
+  requestedByUserId: string;
+  approvedByUserId: string;
+  justification: string;
+  idempotencyKey: string;
+  transitionedAt: string;
+}
+
+/**
+ * Central de Alterações Críticas (STE.PO.002 — Cancelamento, Adiamento com/sem data, Mudança de Local)
+ */
+export type CriticalChangeType =
+  | 'CANCELAMENTO'
+  | 'ADIAMENTO_COM_NOVA_DATA'
+  | 'ADIAMENTO_SEM_DATA'
+  | 'MUDANCA_DE_LOCAL';
+
+export interface CriticalEventChangeRequest {
+  id: string;
+  eventId: string;
+  eventName: string;
+  producerId: string;
+  changeType: CriticalChangeType;
+  reason: string;
+  evidenceDocumentCode: string;
+  requestedByUserId: string;
+  requestedByName: string;
+  newStartDate?: string;
+  newEndDate?: string;
+  newVenueName?: string;
+  newVenueCapacity?: number;
+  allChannelsSalesSuspended: boolean;
+  ticketContinuityPolicy: 'REEMBOLSO_INTEGRAL_INCLUINDO_TAXAS' | 'VALIDOS_PARA_NOVA_DATA_COM_OPCAO_REEMBOLSO' | 'REALOCACAO_DE_MAPA';
+  financialImpact: {
+    affectedOrdersCount: number;
+    affectedTicketsCount: number;
+    totalTicketFaceToRefund: number;
+    totalServiceFeesToRefund: number;
+    totalCustomerRefundObligation: number; // Face + Taxas (regra cancelamento 2026)
+    producerCustodyBalanceAvailable: number;
+    requiresProducerSupplement: number;
+  };
+  status: 'ABERTA_CONGELADA' | 'EM_CONCILIACAO_FINANCEIRA' | 'APROVADA_PARA_COMUNICACAO' | 'ARQUIVADA';
+  createdAt: string;
+}
+
+/**
+ * Plano de Estorno Supervisionado (Sem execução bancária automática na Fase 1)
+ */
+export type SupervisedRefundStatus =
+  | 'SOLICITADO'
+  | 'EM_ANALISE'
+  | 'AUTORIZADO_FINANCEIRO'
+  | 'AGUARDANDO_ADQUIRENTE'
+  | 'CONCLUIDO';
+
+export interface SupervisedRefundPlanItem {
+  id: string;
+  eventId: string;
+  changeRequestId?: string;
+  orderId: string;
+  ticketNumber: string;
+  buyerName: string;
+  buyerTaxId: string;
+  buyerEmail: string;
+  paymentMethod: 'PIX' | 'CREDIT_CARD' | 'CASH_PDV';
+  acquirerProvider: string;
+  faceAmount: number;
+  serviceFeeAmount: number;
+  totalRefundAmount: number;
+  status: SupervisedRefundStatus;
+  authorizedByUserId?: string;
+  authorizedAt?: string;
+  externalProviderConfirmationId?: string;
+  completedAt?: string;
+}
+
+/**
+ * Tabela de Preços Versionada de Comunicação (Resolve conflito documental R$ 0,51 vs R$ 0,61)
+ */
+export type CommunicationPurpose =
+  | 'INFORMATIVO_ALTERACAO_CRITICA'
+  | 'PROMOCIONAL_MARKETING'
+  | 'OPERACIONAL_EMAIL_TRANSACIONAL';
+
+export interface CommunicationPricingVersion {
+  id: string;
+  versionCode: string;
+  channel: 'WHATSAPP' | 'EMAIL' | 'SMS';
+  purpose: CommunicationPurpose;
+  providerName: string;
+  unitPriceBrl: number; // Ex: 0.51 informativo, 0.61 promocional, 0.00 email operacional
+  validFrom: string;
+  validUntil?: string;
+  contractReference: string;
+  isActive: boolean;
+}
+
+/**
+ * Templates Oficiais Revisionados e Separados por Ocorrência (Impede uso de texto de cancelamento em adiamento)
+ */
+export interface OfficialCommunicationTemplate {
+  id: string;
+  code: string;
+  category: CriticalChangeType | 'LANCAMENTO_EVENTO' | 'VIRADA_DE_LOTE' | 'INSTRUCOES_VALIDACAO';
+  title: string;
+  channel: 'WHATSAPP' | 'EMAIL';
+  subjectTemplate?: string;
+  bodyTemplate: string; // Max 1024 chars para WhatsApp conforme ficha 2026
+  reviewedByLegalOrSac: string;
+  version: number;
+}
+
+export interface CustomerCommunicationDispatch {
+  id: string;
+  eventId: string;
+  changeType?: CriticalChangeType;
+  templateId: string;
+  templateCategory: OfficialCommunicationTemplate['category'];
+  channel: 'WHATSAPP' | 'EMAIL';
+  purpose: CommunicationPurpose;
+  pricingVersionCode: string;
+  unitCostApplied: number;
+  rawOrdersCount: number;
+  deduplicatedRecipientsCount: number; // Deduplicado por contato (LGPD)
+  estimatedTotalCost: number;
+  costResponsibility: 'PRODUTOR_PIX' | 'PRODUTOR_BORDERO' | 'CUSTEIO_DISKINGRESSOS';
+  financialApproved: boolean;
+  textApprovedByUserId?: string;
+  status: 'PREVIA_ORCAMENTO' | 'AUTORIZADO' | 'ENVIADO' | 'FALHA_PARCIAL';
+  createdAt: string;
+}
+
+/**
+ * Especificação Documental de Artes 2026 (Seção 5.8)
+ */
+export interface EventArtworkSpecification {
+  assetType:
+    | 'IMAGEM_PRINCIPAL_HOME'
+    | 'BANNER_EVENTO'
+    | 'FUNDO_SITE_COR'
+    | 'FEED_SOCIAL'
+    | 'REELS_MP4'
+    | 'STORY'
+    | 'EMAIL_MARKETING'
+    | 'TESTEIRA_HOME'
+    | 'WHATSAPP_500';
+  label: string;
+  documentedDimensions: string;
+  allowedFormats: string[];
+  maxDurationSeconds?: number;
+  maxTextChars?: number;
+  status: 'PENDENTE' | 'VALIDADO' | 'REJEITADO';
+}
+
 

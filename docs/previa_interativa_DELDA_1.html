@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DELDA_1 — Central de Operação de Eventos (Prévia Interativa 14 Submenus)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --card: #0b1120;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --primary: #4f46e5;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+    aside { width: 290px; background: var(--card); border-right: 1px solid var(--border); padding: 18px; display: flex; flex-direction: column; gap: 6px; }
+    .brand { font-weight: 900; font-size: 16px; color: #818cf8; margin-bottom: 10px; letter-spacing: 0.04em; }
+    .nav-btn { text-align: left; padding: 9px 12px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 600; transition: 0.15s; }
+    .nav-btn:hover, .nav-btn.active { background: rgba(79,70,229,0.2); color: #fff; border-color: var(--primary); }
+    main { flex: 1; padding: 24px; overflow-y: auto; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(16,185,129,0.2); color: #34d399; }
+    .btn { padding: 8px 14px; border-radius: 8px; border: none; font-weight: 700; font-size: 12px; cursor: pointer; background: var(--primary); color: #fff; margin-right: 6px; margin-top: 8px; }
+    .seat { padding: 10px; border-radius: 8px; border: 1px solid var(--border); text-align: center; cursor: pointer; font-weight: 700; font-size: 12px; }
+    .seat.DISPONIVEL { background: rgba(16,185,129,0.18); border-color: var(--emerald); }
+    .seat.BLOQUEADO { background: rgba(245,158,11,0.2); border-color: var(--amber); }
+    .seat.VENDIDO { background: rgba(244,63,94,0.2); border-color: var(--rose); }
+    pre { font-family: monospace; font-size: 11px; color: #cbd5e1; white-space: pre-wrap; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <aside>
+    <div class="brand">🎟️ DELDA_1 • OPERAÇÃO DE EVENTOS</div>
+    <div id="menu"></div>
+  </aside>
+  <main>
+    <div class="header">
+      <div>
+        <h2 id="view-title">1. Painel Operacional</h2>
+        <p style="color:var(--muted);font-size:12px;">Evento Ativo: EVT-2026-001 — Curitiba Rock Fest 2026 (Live Nation Brasil)</p>
+      </div>
+      <span class="badge" id="global-status">Aguardando Dupla Conferência & Produtor</span>
+    </div>
+    <div id="content"></div>
+  </main>
+  <script>
+    const submenus = [
+      '1. Painel Operacional',
+      '2. Solicitações de Eventos',
+      '3. Montagem e Cadastro',
+      '4. Conferência e Aprovação',
+      '5. Publicação e Canais',
+      '6. Setores, Mapas e Bloqueios',
+      '7. Lotes e Preços',
+      '8. Cortesias e Recibos',
+      '9. Bilheteria e Validação',
+      '10. Alterações Críticas',
+      '11. Comunicados e Disparos',
+      '12. Ocorrências e Suporte',
+      '13. Dossiê do Evento',
+      '14. Relatórios e Auditoria'
+    ];
+    let state = {
+      rev1: false,
+      rev2: false,
+      producerApproved: false,
+      published: false,
+      seats: [
+        { code: 'PLT-A01', status: 'DISPONIVEL' },
+        { code: 'PLT-A02', status: 'DISPONIVEL' },
+        { code: 'PLT-A03', status: 'BLOQUEADO' },
+        { code: 'PLT-A04', status: 'VENDIDO' },
+        { code: 'PLT-B01', status: 'DISPONIVEL' },
+        { code: 'PLT-B02', status: 'DISPONIVEL' }
+      ],
+      logs: ['[SISTEMA] Montagem inicial revisão v1 criada por Lucas Andrade (Suporte Técnico).']
+    };
+    function log(msg) {
+      state.logs.unshift(`[${new Date().toLocaleTimeString('pt-BR')}] ${msg}`);
+      render();
+    }
+    let currentIdx = 0;
+    function render() {
+      const menuEl = document.getElementById('menu');
+      menuEl.innerHTML = submenus.map((m, idx) =>
+        `<button class="nav-btn ${idx === currentIdx ? 'active' : ''}" onclick="selectMenu(${idx})">${m}</button>`
+      ).join('');
+      document.getElementById('view-title').textContent = submenus[currentIdx];
+      document.getElementById('global-status').textContent =
+        state.published ? 'PUBLICADO & VENDAS ABERTAS' :
+        state.producerApproved ? 'APROVADO PELO PRODUTOR (PRONTO P/ PUBLICAR)' :
+        (state.rev1 && state.rev2) ? 'DUPLA CONFERÊNCIA CONCLUÍDA' : 'EM CONFERÊNCIA / MONTAGEM';
+
+      const c = document.getElementById('content');
+      if (currentIdx === 3) {
+        c.innerHTML = `<div class="card">
+          <h3>Dupla Conferência Independente (STE.PO.001, p. 3) & Aprovação do Produtor</h3>
+          <p style="font-size:12px;color:var(--muted);margin-top:4px;">Exige 2 conferentes distintos diferentes do montador (Lucas Andrade) antes do aceite do produtor.</p>
+          <div style="margin-top:12px;">
+            <button class="btn" onclick="state.rev1=true;log('1ª Conferência assinada por Mariana Costa (SHA-256)')">1. Assinar 1ª Conferência (${state.rev1 ? 'OK' : 'Pendente'})</button>
+            <button class="btn" onclick="state.rev2=true;log('2ª Conferência assinada por Rafael Souza (SHA-256)')">2. Assinar 2ª Conferência (${state.rev2 ? 'OK' : 'Pendente'})</button>
+            <button class="btn" onclick="if(!state.rev1||!state.rev2){alert('Exige as 2 conferências antes do aceite do produtor!');return;}state.producerApproved=true;log('Aprovação do Produtor registrada na revisão v1')">3. Simular Aprovação do Produtor (${state.producerApproved ? 'OK' : 'Pendente'})</button>
+          </div>
+        </div>`;
+      } else if (currentIdx === 4) {
+        c.innerHTML = `<div class="card">
+          <h3>Publicação Omnicanal Condicionada (Site, App, PDV e Link Restrito)</h3>
+          <p style="font-size:12px;color:var(--muted);margin-top:4px;">Bloqueia vendas em qualquer canal (inclusive PDV físico) enquanto Dupla Conferência + Aceite do Produtor não estiverem concluídos.</p>
+          <button class="btn" onclick="if(!state.producerApproved){alert('BLOQUEADO NO SERVIDOR: Exige Dupla Conferência e Aceite do Produtor!');return;}state.published=true;log('Evento publicado e liberado para vendas omnicanal')">Publicar e Liberar Vendas</button>
+        </div>`;
+      } else if (currentIdx === 5) {
+        c.innerHTML = `<div class="card">
+          <h3>Setores, Mapas e Bloqueios (Clique no assento para Bloquear / Liberar — STE.PO.003)</h3>
+          <div class="grid">
+            ${state.seats.map((s, i) => `<div class="seat ${s.status}" onclick="toggleSeat(${i})">${s.code}<br/>${s.status}</div>`).join('')}
+          </div>
+        </div>`;
+      } else {
+        c.innerHTML = `<div class="card">
+          <h3>${submenus[currentIdx]}</h3>
+          <p style="font-size:13px;color:var(--muted);margin-top:6px;">Módulo integrado ao evento único no DELDA_1 ERP Core. Navegue para 4. Conferência e Aprovação, 5. Publicação e Canais ou 6. Setores, Mapas e Bloqueios para testar as travas interativas.</p>
+          <pre>${state.logs.join('\n')}</pre>
+        </div>`;
+      }
+    }
+    window.selectMenu = (idx) => { currentIdx = idx; render(); };
+    window.toggleSeat = (i) => {
+      const s = state.seats[i];
+      if (s.status === 'VENDIDO') { alert('Assento já VENDIDO! Não pode ser bloqueado ou vendido novamente (Caso 6).'); return; }
+      s.status = s.status === 'BLOQUEADO' ? 'DISPONIVEL' : 'BLOQUEADO';
+      log(`Assento ${s.code} alterado para ${s.status} (STE.PO.003)`);
+    };
+    render();
+  </script>
+</body>
+</html>

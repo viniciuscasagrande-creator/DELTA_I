@@ -1514,6 +1514,344 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
       return;
     }
 
+    // 9.1 Central de Operação de Eventos Ponta a Ponta (/api/eventos/... — STE.PO.001, STE.IT.001, STE.PO.002, STE.PO.003)
+    if (pathname === '/api/eventos/solicitacoes') {
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      if (req.method === 'POST') {
+        const body = await readJsonBody(req);
+        const created = eventsService.createIntakeRequest(ctx, body);
+        sendJson(res, 201, { success: true, data: created }, req);
+        return;
+      }
+      if (req.method === 'GET') {
+        const statusFilter = reqUrl.searchParams.get('status') || undefined;
+        const list = eventsService.listIntakeRequests(ctx, statusFilter);
+        sendJson(res, 200, { success: true, data: list }, req);
+        return;
+      }
+    }
+
+    const evtRevisionMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/revisoes$/);
+    if (req.method === 'POST' && evtRevisionMatch) {
+      const eventId = evtRevisionMatch[1];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const updated = EventsService.applyMaterialRevision(evt, body.updates || body, {
+        userId: body.actorUserId || ctx.userId,
+        userName: body.actorUserName || ctx.userEmail,
+        role: body.actorRole || ctx.roleCode,
+        reason: body.reason || 'Atualização de dados materiais da montagem',
+      });
+      sendJson(res, 200, { success: true, data: EventsService.enforceProducerScopeAndSanitize(updated, ctx) }, req);
+      return;
+    }
+
+    const evtReviewMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/conferencias$/);
+    if (req.method === 'POST' && evtReviewMatch) {
+      const eventId = evtReviewMatch[1];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const review = EventsService.submitIndependentReview(evt, {
+        reviewerUserId: body.reviewerUserId || ctx.userId,
+        reviewerName: body.reviewerName || 'Conferente Independente',
+        reviewerRole: body.reviewerRole || ctx.roleCode,
+        sectorsVerified: Boolean(body.sectorsVerified ?? true),
+        pricesAndFeesVerified: Boolean(body.pricesAndFeesVerified ?? true),
+        halfPriceRulesVerified: Boolean(body.halfPriceRulesVerified ?? true),
+        channelsAndPosVerified: Boolean(body.channelsAndPosVerified ?? true),
+        blockQuestionsVerified: Boolean(body.blockQuestionsVerified ?? true),
+        decision: body.decision || 'APPROVED',
+        notes: body.notes,
+      });
+      sendJson(res, 201, { success: true, data: review }, req);
+      return;
+    }
+
+    const evtProducerApprovalMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/aprovacoes\/produtor$/);
+    if (req.method === 'POST' && evtProducerApprovalMatch) {
+      const eventId = evtProducerApprovalMatch[1];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, body.companyCode || 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const approval = EventsService.submitProducerApproval(evt, {
+        producerId: body.producerId || evt.producerId,
+        producerUserName: body.producerUserName || evt.producerName,
+        decision: body.decision || 'APPROVED',
+        notes: body.notes,
+      });
+      sendJson(res, 200, { success: true, data: approval }, req);
+      return;
+    }
+
+    const evtPubMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/publicacao\/(validar|efetivar|canais)$/);
+    if (evtPubMatch) {
+      const eventId = evtPubMatch[1];
+      const action = evtPubMatch[2];
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+
+      if (req.method === 'GET' && action === 'canais') {
+        sendJson(
+          res,
+          200,
+          {
+            success: true,
+            data: {
+              eventId: evt.id,
+              publicationStatus: evt.publicationStatus,
+              salesStatus: evt.salesStatus,
+              enabledChannels: evt.enabledChannels,
+              restrictedLinkOnly: evt.restrictedLinkOnly,
+            },
+          },
+          req
+        );
+        return;
+      }
+
+      if (req.method === 'POST') {
+        const body = await readJsonBody(req);
+        if (body.blockQuestions) {
+          EventsService.answerMandatoryBlockQuestions(evt, {
+            ...body.blockQuestions,
+            actorUserId: ctx.userId,
+            actorRole: ctx.roleCode,
+          });
+        }
+        const published = EventsService.validateAndPublishEventOmnichannel(evt, {
+          channelsToEnable: body.channelsToEnable || ['SITE', 'APP', 'PDV'],
+          restrictedLinkOnly: Boolean(body.restrictedLinkOnly),
+          openSalesImmediately: action === 'efetivar' ? Boolean(body.openSalesImmediately ?? true) : false,
+          actorUserId: ctx.userId,
+          actorRole: ctx.roleCode,
+        });
+        sendJson(res, 200, { success: true, data: EventsService.enforceProducerScopeAndSanitize(published, ctx) }, req);
+        return;
+      }
+    }
+
+    const evtBlocksMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/bloqueios$/);
+    if (req.method === 'POST' && evtBlocksMatch) {
+      const eventId = evtBlocksMatch[1];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const block = EventsService.createSeatBlock(evt, {
+        sectorId: body.sectorId || evt.sectors[0]?.id,
+        blockType: body.blockType || 'TECNICO_PRODUCAO',
+        origin: body.origin || 'Suporte Técnico',
+        reason: body.reason || 'Reserva técnica de produção',
+        seatCodes: body.seatCodes || [],
+        responsibleUserId: ctx.userId,
+        responsibleName: body.responsibleName || ctx.userEmail,
+        reviewDeadline: body.reviewDeadline || '2026-11-10',
+      });
+      sendJson(res, 201, { success: true, data: block }, req);
+      return;
+    }
+
+    const evtCourtesyMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/cortesias$/);
+    if (req.method === 'POST' && evtCourtesyMatch) {
+      const eventId = evtCourtesyMatch[1];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const result = EventsService.issueCourtesyBatchWithReceipt(evt, {
+        sectorId: body.sectorId || evt.sectors[0]?.id,
+        recipientName: body.recipientName || 'Produtor Responsável',
+        recipientDocument: body.recipientDocument || '12.345.678/0001-99',
+        quantity: Number(body.quantity || 10),
+        deliveryMode: body.deliveryMode || 'IMPRESSO_FISICO',
+        issuerUserId: ctx.userId,
+        issuerName: body.issuerName || ctx.userEmail,
+        startSequenceNumber: Number(body.startSequenceNumber || 900001),
+      });
+      sendJson(res, 201, { success: true, data: result }, req);
+      return;
+    }
+
+    const evtLotTurnMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/lotes\/([^/]+)\/virada$/);
+    if (req.method === 'POST' && evtLotTurnMatch) {
+      const eventId = evtLotTurnMatch[1];
+      const closedLotId = evtLotTurnMatch[2];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const transition = EventsService.executeAtomicLotTransition(evt, {
+        closedLotId,
+        openedLotId: body.openedLotId,
+        newFacePrice: body.newFacePrice ? Number(body.newFacePrice) : undefined,
+        triggerType: body.triggerType || 'MANUAL_SUPORTE',
+        requestedByUserId: body.requestedByUserId || ctx.userId,
+        approvedByUserId: body.approvedByUserId || ctx.userId,
+        justification: body.justification || 'Virada atômica de lote autorizada',
+        idempotencyKey: body.idempotencyKey || `lot_turn_${closedLotId}_${body.openedLotId}`,
+      });
+      sendJson(res, 200, { success: true, data: transition }, req);
+      return;
+    }
+
+    const evtCriticalChangeMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/alteracoes-criticas$/);
+    if (req.method === 'POST' && evtCriticalChangeMatch) {
+      const eventId = evtCriticalChangeMatch[1];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const result = EventsService.registerCriticalEventChange(evt, {
+        changeType: body.changeType || 'CANCELAMENTO',
+        reason: body.reason || 'Solicitação formal do produtor',
+        evidenceDocumentCode: body.evidenceDocumentCode || 'OFICIO-PROD-2026-01',
+        requestedByUserId: ctx.userId,
+        requestedByName: body.requestedByName || ctx.userEmail,
+        actorRole: ctx.roleCode,
+        newStartDate: body.newStartDate,
+        newEndDate: body.newEndDate,
+        newVenueName: body.newVenueName,
+        newVenueCapacity: body.newVenueCapacity,
+        existingPaidOrders: body.existingPaidOrders || [],
+      });
+      sendJson(res, 201, { success: true, data: result }, req);
+      return;
+    }
+
+    const evtCommPreviewMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/comunicados\/previsualizar$/);
+    if (req.method === 'POST' && evtCommPreviewMatch) {
+      const eventId = evtCommPreviewMatch[1];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const preview = EventsService.previewAndValidateEventCommunication(evt, {
+        changeType: body.changeType,
+        templateId: body.templateId,
+        purpose: body.purpose || 'INFORMATIVO_ALTERACAO_CRITICA',
+        pricingVersionCode: body.pricingVersionCode || 'TAB-2026-WA-INFO-V1',
+        recipientContacts: body.recipientContacts || [],
+        costResponsibility: body.costResponsibility || 'PRODUTOR_BORDERO',
+        actorUserId: ctx.userId,
+      });
+      sendJson(res, 200, { success: true, data: preview }, req);
+      return;
+    }
+
+    const evtBlockReleaseMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/bloqueios\/([^/]+)\/liberacao$/);
+    if (req.method === 'POST' && evtBlockReleaseMatch) {
+      const eventId = evtBlockReleaseMatch[1];
+      const blockId = evtBlockReleaseMatch[2];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const released = EventsService.releaseSeatBlock(evt, {
+        blockId,
+        releasedByUserId: body.releasedByUserId || ctx.userId,
+        releasedByName: body.releasedByName || ctx.userEmail,
+        reason: body.reason || 'Liberação de bloqueio autorizada para venda',
+      });
+      sendJson(res, 200, { success: true, data: released }, req);
+      return;
+    }
+
+    const evtCourtesyReceiptMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/cortesias\/([^/]+)\/recibo$/);
+    if (req.method === 'POST' && evtCourtesyReceiptMatch) {
+      const eventId = evtCourtesyReceiptMatch[1];
+      const batchId = evtCourtesyReceiptMatch[2];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const receipt = EventsService.signCourtesyReceipt(evt, {
+        batchId,
+        signedByName: body.signedByName || evt.producerName,
+        signedByDocument: body.signedByDocument || '12.345.678/0001-99',
+        signatureHash: body.signatureHash,
+      });
+      sendJson(res, 200, { success: true, data: receipt }, req);
+      return;
+    }
+
+    const evtCriticalValidateMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/alteracoes-criticas\/([^/]+)\/validar$/);
+    if (req.method === 'POST' && evtCriticalValidateMatch) {
+      const eventId = evtCriticalValidateMatch[1];
+      const changeId = evtCriticalValidateMatch[2];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const validated = EventsService.validateCriticalEventChange(evt, {
+        changeId,
+        approvedByUserId: body.approvedByUserId || ctx.userId,
+        approvedByName: body.approvedByName || ctx.userEmail,
+        financialStatusNote: body.financialStatusNote,
+      });
+      sendJson(res, 200, { success: true, data: validated }, req);
+      return;
+    }
+
+    const evtCommApproveMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/comunicados\/([^/]+)\/aprovar$/);
+    if (req.method === 'POST' && evtCommApproveMatch) {
+      const eventId = evtCommApproveMatch[1];
+      const commId = evtCommApproveMatch[2];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const approved = EventsService.approveEventCommunication(evt, {
+        commId,
+        approvedByUserId: body.approvedByUserId || ctx.userId,
+        approvedByName: body.approvedByName || ctx.userEmail,
+      });
+      sendJson(res, 200, { success: true, data: approved }, req);
+      return;
+    }
+
+    const evtIncidentMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/ocorrencias$/);
+    if (req.method === 'POST' && evtIncidentMatch) {
+      const eventId = evtIncidentMatch[1];
+      const body = await readJsonBody(req);
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const incident = EventsService.registerEventIncident(evt, {
+        type: body.type || 'FALSA_DUPLICIDADE',
+        severity: body.severity || 'MEDIUM',
+        sectorName: body.sectorName || evt.sectors[0]?.name || 'Portaria Geral',
+        ticketNumber8Digits: body.ticketNumber8Digits,
+        description: body.description || 'Ocorrência de operação de portaria',
+        resolution: body.resolution || 'Validado com documento do titular e log do coletor',
+        reportedBy: body.reportedBy || ctx.userEmail,
+      });
+      sendJson(res, 201, { success: true, data: incident }, req);
+      return;
+    }
+
+    const evtDossierOrAuditMatch = pathname.match(/^\/api\/eventos\/([^/]+)\/(dossie|auditoria|impacto-financeiro)$/);
+    if (req.method === 'GET' && evtDossierOrAuditMatch) {
+      const eventId = evtDossierOrAuditMatch[1];
+      const subResource = evtDossierOrAuditMatch[2];
+      const ctx = await buildExecutionContext(req, 'EMP-01', 'SUPER_ADMIN');
+      const evt = eventsService.getOrCreateOperationalEvent(eventId, ctx.tenantId);
+      const sanitized = EventsService.enforceProducerScopeAndSanitize(evt, ctx);
+
+      if (subResource === 'auditoria') {
+        sendJson(res, 200, { success: true, data: sanitized.auditTrail }, req);
+        return;
+      }
+      if (subResource === 'impacto-financeiro') {
+        sendJson(
+          res,
+          200,
+          {
+            success: true,
+            data: {
+              criticalChanges: sanitized.criticalChanges,
+              refundPlan: sanitized.refundPlan,
+            },
+          },
+          req
+        );
+        return;
+      }
+      sendJson(res, 200, { success: true, data: sanitized }, req);
+      return;
+    }
+
     // 10. Overview Consolidado (/api/foundation/overview)
     if (req.method === 'GET' && pathname === '/api/foundation/overview') {
       const companyCode = reqUrl.searchParams.get('companyCode') || 'EMP-01';

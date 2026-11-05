@@ -20,13 +20,13 @@ interface CommercialModulePageProps {
 type CommercialTab = 'hub' | 'contracts' | 'new_contract' | 'producers' | 'proposals' | 'reports';
 
 export const CommercialModulePage: React.FC<CommercialModulePageProps> = ({
-  selectedSubmenu,
+  selectedSubmenu: _selectedSubmenu,
   onNotify,
 }) => {
   const [activeTab, setActiveTab] = useState<CommercialTab>('hub');
   const [contracts, setContracts] = useState<CommercialContractItem[]>(commercialContractsSeed);
-  const [producers, setProducers] = useState<CommercialProducer[]>(commercialProducersSeed);
-  const [proposals, setProposals] = useState<CommercialProposal[]>(commercialProposalsSeed);
+  const [producers] = useState<CommercialProducer[]>(commercialProducersSeed);
+  const [proposals] = useState<CommercialProposal[]>(commercialProposalsSeed);
 
   // Filtros
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,8 +40,8 @@ export const CommercialModulePage: React.FC<CommercialModulePageProps> = ({
   const [selectedProducerId, setSelectedProducerId] = useState(producers[0]?.id || '');
   const [newVenueName, setNewVenueName] = useState('Parque Barigui — Pavilhão de Eventos');
   const [newVenueCity, setNewVenueCity] = useState('Curitiba / PR');
-  const [newStartDate, setNewStartDate] = useState('2026-12-10');
-  const [newEndDate, setNewEndDate] = useState('2026-12-12');
+  const [newStartDate] = useState('2026-12-10');
+  const [newEndDate] = useState('2026-12-12');
   const [newCapacity, setNewCapacity] = useState('15000');
   const [newAvgTicket, setNewAvgTicket] = useState('120');
   const [newFeeRatePct, setNewFeeRatePct] = useState('14');
@@ -49,7 +49,7 @@ export const CommercialModulePage: React.FC<CommercialModulePageProps> = ({
   const [newExclusivity, setNewExclusivity] = useState<CommercialContractItem['exclusivityType']>('TOTAL_EXCLUSIVITY');
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['ONLINE_ECOMMERCE', 'BOX_OFFICE_PDV']);
   const [newExecutive, setNewExecutive] = useState('Lucas Marcondes (Head Comercial Festivais)');
-  const [newNotes, setNewNotes] = useState('Contrato negociado com cota de cortesias institucionais.');
+  const [newNotes] = useState('Contrato negociado com cota de cortesias institucionais.');
 
   // Cálculos do simulador em tempo real
   const simCapacity = Number(newCapacity) || 0;
